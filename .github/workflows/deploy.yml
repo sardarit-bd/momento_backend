@@ -47,9 +47,14 @@ jobs:
             echo "→ Creating storage symlink (if not exists)..."
             php artisan storage:link --force 2>/dev/null || true
 
-            
+            echo "→ Clearing caches..."
+            php artisan config:clear
+            php artisan route:clear
+            php artisan event:clear
 
-            echo "→ Optimizing class loader..."
-            php artisan optimize
+            echo "→ Rebuilding caches..."
+            php artisan config:cache
+            php artisan route:cache
+            php artisan event:cache
 
             echo "✓ Deployment complete."

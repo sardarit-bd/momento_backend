@@ -91,12 +91,20 @@ class Product extends Model
     
     protected $appends = ['image_url'];
 
+    // public function getImageUrlAttribute()
+    // {
+    //     if ($this->image) {
+    //         return asset('/public/storage/' . $this->image);
+    //     }
+
+    //     return null;
+    // }
+
     public function getImageUrlAttribute()
     {
         if ($this->image) {
-            return asset('/public/storage/' . $this->image);
+            return asset('storage/' . $this->image);
         }
-
         return null;
     }
 

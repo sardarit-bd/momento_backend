@@ -11,11 +11,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Checkout────────────────────────────────────────────────────────
+      # ── 1. Checkout ────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Deploy via SSH ────────────────────────────
+      # ── 2. Deploy via SSH (appleboy/ssh-action) ────────────────────────────
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -23,6 +23,7 @@ jobs:
           port: ${{ secrets.PORT }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
           script: |
             set -e
             APP_DIR="/home/u395498717/domains/plum-koala-349902.hostingersite.com/public_html"
@@ -33,7 +34,7 @@ jobs:
             git pull origin main
 
             echo "→ Installing Composer dependencies..."
-            composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+            composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --ignore-platform-req=ext-sodium
 
             echo "→ Setting directory & file permissions..."
             find . -type f ! -path './.git/*' -exec chmod 644 {} \;

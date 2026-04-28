@@ -24,8 +24,6 @@ Route::post('forgotpass',      [OtpController::class, 'otpSender']);
 Route::post('verify',      [OtpController::class, 'verifyOtp']);
 Route::post('resetpass',      [OtpController::class, 'resetPassword']);
 
-// new route will be added here
-
 
 //Profile
 Route::get('profile/{id}',[ProfileController::class, 'profile']);

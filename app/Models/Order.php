@@ -23,6 +23,11 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function customizedCards()
+    {
+        return $this->hasManyThrough(OrderItemCard::class, OrderItem::class, 'order_id', 'order_item_id', 'id', 'id');
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -41,8 +46,8 @@ class Order extends Model
         return static::where('status', 'pending')
             ->where('created_at', '<=', now()->subHours(24));
     }
-    
-    
+
+
     protected $appends = ['customized_file_url'];
 
     public function getCustomizedFileUrlAttribute()

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use App\Services\PaymentGateway\PaymentGatewayFactory;
 use App\Http\Resources\OrderResource;
 
@@ -22,6 +23,8 @@ use App\Http\Resources\OrderResource;
  */
 class OrderController extends Controller
 {
+    private const DECK_RANKS = ['ace', 'king', 'queen', 'jack', 'joker'];
+
     /**
      * Fetch all orders for the authenticated user.
      */
@@ -108,10 +111,12 @@ class OrderController extends Controller
                     'price'      => $price,
                 ]);
 
-                // Save FinalProduct images if exist
-                if (!empty($item['FinalProduct'])) {
+                $cardSaveResult = $this->storeOrderItemCards($orderItem, $item['FinalProduct'] ?? [], $item['customization_mode'] ?? null);
+                if ($cardSaveResult['count'] > 0) {
                     $orderItem->update([
-                        'customization_images' => json_encode($item['FinalProduct']),
+                        'customization_mode' => $cardSaveResult['mode'],
+                        'card_design_count' => $cardSaveResult['count'],
+                        'customization_images' => null,
                     ]);
                 }
 
@@ -161,6 +166,120 @@ class OrderController extends Controller
                 'error'   => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Persist customized card images for one order item.
+     * Accepts multiple payload shapes for backward compatibility.
+     */
+    private function storeOrderItemCards($orderItem, array $finalProduct, ?string $requestedMode = null): array
+    {
+        if (empty($finalProduct)) {
+            return ['count' => 0, 'mode' => 'none'];
+        }
+
+        $entries = [];
+        foreach ($finalProduct as $entry) {
+            if (is_string($entry)) {
+                $entries[] = ['image' => $entry];
+                continue;
+            }
+
+            if (is_array($entry)) {
+                $entries[] = $entry;
+            }
+        }
+
+        if (empty($entries)) {
+            return ['count' => 0, 'mode' => 'none'];
+        }
+
+        $mode = $this->detectCustomizationMode($entries, $requestedMode);
+        $isTrading = $mode === 'trading';
+        $tradingGroupKey = $isTrading ? (string) Str::uuid() : null;
+
+        foreach ($entries as $index => $entry) {
+            $base64 = $entry['image'] ?? $entry['data'] ?? null;
+            if (!is_string($base64) || $base64 === '') {
+                continue;
+            }
+
+            [$mime, $blob] = $this->decodeBase64Image($base64);
+            if ($blob === null) {
+                continue;
+            }
+
+            $side = $entry['side'] ?? null;
+            $rank = $entry['rank'] ?? null;
+            if ($mode === 'deck') {
+                $side = 'single';
+                $rank = $rank ?: (self::DECK_RANKS[$index] ?? null);
+            } else {
+                $side = in_array($side, ['front', 'back'], true) ? $side : ($index === count($entries) - 1 ? 'back' : 'front');
+                $rank = null;
+            }
+
+            $orderItem->cards()->create([
+                'card_pair_key' => $isTrading ? ($entry['card_pair_key'] ?? $tradingGroupKey) : null,
+                'card_type' => $mode,
+                'side' => $side,
+                'rank' => $rank,
+                'position' => $index + 1,
+                'image_blob' => $blob,
+                'image_mime' => $mime,
+                'image_size_bytes' => strlen($blob),
+                'image_sha256' => hash('sha256', $blob),
+            ]);
+        }
+
+        return [
+            'count' => $orderItem->cards()->count(),
+            'mode' => $mode,
+        ];
+    }
+
+    /**
+     * @return array{0:?string,1:?string}
+     */
+    private function decodeBase64Image(string $payload): array
+    {
+        $mime = null;
+        $encoded = $payload;
+
+        if (preg_match('/^data:([a-zA-Z0-9\\/\\-\\+\\.]+);base64,(.*)$/s', $payload, $matches)) {
+            $mime = $matches[1];
+            $encoded = $matches[2];
+        }
+
+        $decoded = base64_decode(str_replace(' ', '+', $encoded), true);
+        if ($decoded === false) {
+            return [null, null];
+        }
+
+        return [$mime ?? 'image/png', $decoded];
+    }
+
+    private function detectCustomizationMode(array $entries, ?string $requestedMode = null): string
+    {
+        if (in_array($requestedMode, ['trading', 'deck'], true)) {
+            return $requestedMode;
+        }
+
+        foreach ($entries as $entry) {
+            $side = $entry['side'] ?? null;
+            if (in_array($side, ['front', 'back'], true)) {
+                return 'trading';
+            }
+        }
+
+        foreach ($entries as $entry) {
+            $rank = strtolower((string) ($entry['rank'] ?? ''));
+            if (in_array($rank, self::DECK_RANKS, true)) {
+                return 'deck';
+            }
+        }
+
+        return in_array(count($entries), [4, 5], true) ? 'deck' : 'trading';
     }
 
 

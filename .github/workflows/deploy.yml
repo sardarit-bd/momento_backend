@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Deploy via SSH────────────────────────────
+      # ── 2. Deploy via SSH ────────────────────────────
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:

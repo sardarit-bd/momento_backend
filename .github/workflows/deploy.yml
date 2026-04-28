@@ -50,7 +50,7 @@ jobs:
             echo "→ Clearing & rebuilding caches..."
             php artisan config:clear
             php artisan route:clear
-            php artisan view:clear
+            php artisan view:clear 2>/dev/null || true
             php artisan event:clear
 
             php artisan config:cache

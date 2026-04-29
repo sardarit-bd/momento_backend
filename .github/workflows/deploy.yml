@@ -56,8 +56,21 @@ jobs:
         run: |
           cp .env.example .env
           php artisan key:generate --force
+          echo "DB_CONNECTION=mysql"         >> .env
+          echo "DB_HOST=127.0.0.1"           >> .env
+          echo "DB_PORT=3306"                >> .env
+          echo "DB_DATABASE=dummy"           >> .env
+          echo "DB_USERNAME=dummy"           >> .env
+          echo "DB_PASSWORD=dummy"           >> .env
+          echo "CACHE_STORE=array"           >> .env
+          echo "SESSION_DRIVER=array"        >> .env
+          echo "QUEUE_CONNECTION=sync"       >> .env
+          echo "MAIL_MAILER=log"             >> .env
+          echo "REDIS_CLIENT=predis"         >> .env
+          echo "BROADCAST_CONNECTION=log"    >> .env
 
       - name: Build assets and cache
+        timeout-minutes: 2
         run: |
           npm run build
           php artisan config:cache

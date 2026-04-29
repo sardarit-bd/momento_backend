@@ -77,22 +77,6 @@ jobs:
           npm run build
           echo "✅ npm build done"
 
-      - name: Cache Laravel artifacts
-        timeout-minutes: 5
-        run: |
-
-          echo "🔄 Running config:cache..."
-          php artisan config:cache --no-interaction
-          echo "✅ config:cache done"
-
-          echo "🔄 Running route:cache..."
-          php artisan route:cache --no-interaction
-          echo "✅ route:cache done"
-
-          echo "🔄 Running view:cache..."
-          php artisan view:cache --no-interaction
-          echo "✅ view:cache done"
-
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest

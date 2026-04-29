@@ -23,6 +23,8 @@ env:
   APP_PATH: /var/www/momento.sardarit.cloud
   PHP_VERSION: '8.3'
   NODE_VERSION: '22'
+  BUILD_TIMEOUT_MINUTES: '15'
+  NODE_OPTIONS: --max-old-space-size=4096
 
 jobs:
   ci:
@@ -69,13 +71,27 @@ jobs:
           echo "REDIS_CLIENT=predis"         >> .env
           echo "BROADCAST_CONNECTION=log"    >> .env
 
-      - name: Build assets and cache
-        timeout-minutes: 2
+      - name: Build assets
+        timeout-minutes: ${{ fromJSON(env.BUILD_TIMEOUT_MINUTES) }}
         run: |
           npm run build
-          php artisan config:cache
-          php artisan route:cache
-          php artisan view:cache
+          echo "✅ npm build done"
+
+      - name: Cache Laravel artifacts
+        timeout-minutes: 5
+        run: |
+
+          echo "🔄 Running config:cache..."
+          php artisan config:cache --no-interaction
+          echo "✅ config:cache done"
+
+          echo "🔄 Running route:cache..."
+          php artisan route:cache --no-interaction
+          echo "✅ route:cache done"
+
+          echo "🔄 Running view:cache..."
+          php artisan view:cache --no-interaction
+          echo "✅ view:cache done"
 
   deploy:
     name: Deploy to VPS

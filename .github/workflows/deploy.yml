@@ -28,20 +28,12 @@ env:
 
 jobs:
   ci:
-    name: CI Build
+    name: CI Build (Simple)
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ env.PHP_VERSION }}
-          tools: composer:v2
-          coverage: none
-          extensions: mbstring, bcmath, pdo_mysql
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -49,33 +41,14 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Install dependencies
+      - name: Install node modules
         run: |
-          composer install --no-interaction --prefer-dist --optimize-autoloader
           npm ci
-
-      - name: Prepare application environment
-        run: |
-          cp .env.example .env
-          php artisan key:generate --force
-          echo "DB_CONNECTION=mysql"         >> .env
-          echo "DB_HOST=127.0.0.1"           >> .env
-          echo "DB_PORT=3306"                >> .env
-          echo "DB_DATABASE=dummy"           >> .env
-          echo "DB_USERNAME=dummy"           >> .env
-          echo "DB_PASSWORD=dummy"           >> .env
-          echo "CACHE_STORE=array"           >> .env
-          echo "SESSION_DRIVER=array"        >> .env
-          echo "QUEUE_CONNECTION=sync"       >> .env
-          echo "MAIL_MAILER=log"             >> .env
-          echo "REDIS_CLIENT=predis"         >> .env
-          echo "BROADCAST_CONNECTION=log"    >> .env
 
       - name: Build assets
         timeout-minutes: ${{ fromJSON(env.BUILD_TIMEOUT_MINUTES) }}
         run: |
           npm run build
-          echo "✅ npm build done"
 
   deploy:
     name: Deploy to VPS

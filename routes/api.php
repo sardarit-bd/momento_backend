@@ -43,6 +43,11 @@ Route::middleware('auth:api')->group(function () {
 Route::middleware(['auth:api', 'roles:Admin'])->group(function () {
     Route::apiResource('categories',CategoryController::class);
     Route::apiResource('products',ProductController::class);
+    Route::post('cardproduct', [ProductController::class, 'cardproduct']);
+    Route::get('cardproduct/{slug}', [ProductController::class, 'showCardProduct']);
+
+    Route::post('updateproduct', [ProductController::class, 'updateProductStatus']);
+    
     Route::resource('orders', AdminOrderController::class)
         ->only(['index', 'show', 'update']);
     Route::get('/orders/{order}/cancel', [AdminOrderController::class, 'orderCancel']);

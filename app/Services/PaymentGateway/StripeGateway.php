@@ -46,6 +46,12 @@ class StripeGateway implements PaymentGatewayInterface
             'cancel_url'  => $data['cancel_url'],
             'metadata' => [
                 'order_id' => $data['metadata']['order_id'],
+                'first_name' => $data['metadata']['first_name'] ?? '',
+                'last_name' => $data['metadata']['last_name'] ?? '',
+                'phone' => $data['metadata']['phone'] ?? '',
+                'address' => $data['metadata']['address'] ?? '',
+                'city' => $data['metadata']['city'] ?? '',
+                'zipcode' => $data['metadata']['zipcode'] ?? '',
             ],
             'expires_at' => $data['expires_at'] ?? now()->addHour(1)->timestamp,
             'after_expiration' => $data['after_expiration'] ?? [

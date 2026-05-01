@@ -53,7 +53,7 @@ class Order extends Model
     public function getCustomizedFileUrlAttribute()
     {
         if ($this->customized_file) {
-            return asset('/public/storage/' . $this->customized_file);
+            return asset('storage/' . $this->customized_file);
         }
 
         return null;

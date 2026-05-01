@@ -22,7 +22,7 @@ class OrderItemResource extends JsonResource
             'quantity' => $this->quantity,
             'unit_price' => $this->unit_price ?? $this->price,
             'total_price' => ($this->quantity ?? 1) * ($this->unit_price ?? $this->price ?? 0),
-            'product_image' => $this->product_image ? env('APP_URL').'/public/storage/'.$this->product->image : null,
+            'product_image' => $this->product_image ? asset('storage/' . $this->product->image) : null,
 
             // If you have product relationship
             'product' => $this->whenLoaded('product', function () {
@@ -30,7 +30,7 @@ class OrderItemResource extends JsonResource
                     'id' => $this->product->id,
                     'name' => $this->product->name,
                     'price' => $this->product->price,
-                    'image' => $this->product->image ? env('APP_URL').'/public/storage/'.$this->product->image : null,
+                    'image' => $this->product->image ? asset('storage/' . $this->product->image) : null,
                     'description' => $this->product->description ?? null,
                 ];
             }),

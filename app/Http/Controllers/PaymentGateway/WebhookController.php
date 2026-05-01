@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\PaymentGateway;
 
 use App\Models\Order;
+use App\Models\ShippingInformation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -118,6 +119,18 @@ class WebhookController extends Controller
             } else {
                 Log::warning('No pending payment record found for order', ['order_id' => $orderId]);
             }
+
+            ShippingInformation::firstOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'first_name' => (string) ($session->metadata->first_name ?? ''),
+                    'last_name' => (string) ($session->metadata->last_name ?? ''),
+                    'phone' => (string) ($session->metadata->phone ?? ''),
+                    'address' => (string) ($session->metadata->address ?? ''),
+                    'city' => (string) ($session->metadata->city ?? ''),
+                    'zipcode' => (string) ($session->metadata->zipcode ?? ''),
+                ]
+            );
 
             // ✅ REMOVED: Don't manually update is_paid - the OrderHasPaidObserver handles this
             // The observer will automatically call syncOrderPaymentStatus() which updates is_paid

@@ -3,6 +3,7 @@
 namespace App\Services\PaymentGateway;
 
 use App\Models\Product;
+use App\Models\ShippingInformation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -16,14 +17,15 @@ class StripeGatewayService
     public function createCheckoutSession(Request $request)
     {
         $request->validate([
-            'name'    => 'required|string|max:255',
-            'email'   => 'required|email',
-            'phone'   => 'required|string|max:50',
-            'address' => 'required|string|max:500',
-            'city'    => 'nullable|string|max:100',
-            'zipcode' => 'nullable|string|max:20',
-            'gateway' => 'required|string|in:stripe,cod,cash_on_delivery',
-            'items'   => 'required|array|min:1',
+            'first_name' => 'required|string|max:255',
+            'last_name'  => 'required|string|max:255',
+            'email'      => 'required|email',
+            'phone'      => 'required|string|max:50',
+            'address'    => 'required|string|max:500',
+            'city'       => 'required|string|max:100',
+            'zipcode'    => 'required|string|max:20',
+            'gateway'    => 'required|string|in:stripe,cod,cash_on_delivery',
+            'items'      => 'required|array|min:1',
             'items.*.product_id' => 'required|integer',
             'items.*.qty'        => 'required|integer|min:1',
             'items.*.price'      => 'nullable|numeric|min:0',
@@ -112,7 +114,7 @@ class StripeGatewayService
 
             $order = \App\Models\Order::create([
                 'user_id'  => auth('api')->id(),
-                'name'     => $request->name,
+                'name'     => $request->first_name . ' ' . $request->last_name,
                 'email'    => $request->email,
                 'phone'    => $request->phone,
                 'address'  => $request->address,
@@ -122,6 +124,18 @@ class StripeGatewayService
                 'status'   => 'pending',
                 'is_paid'  => false,
             ]);
+
+            ShippingInformation::updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'first_name' => $request->first_name,
+                    'last_name' => $request->last_name,
+                    'phone' => $request->phone,
+                    'address' => $request->address,
+                    'city' => $request->city,
+                    'zipcode' => $request->zipcode,
+                ]
+            );
 
             Log::info('Order created for Stripe checkout', ['order_id' => $order->id]);
 
@@ -178,14 +192,26 @@ class StripeGatewayService
 
 
             $gateway = PaymentGatewayFactory::make('stripe');
+
+            Log::info('Stripe URLs being sent', [
+                'success_url' => rtrim(config('app.frontend_url'), '/') . '/payment/success?session_id={CHECKOUT_SESSION_ID}',
+                'cancel_url'  => rtrim(config('app.frontend_url'), '/') . '/payment/cancel?session_id={CHECKOUT_SESSION_ID}',
+            ]);
             
             $session = $gateway->createCheckout([
                 'items'       => $stripeItems,
-                'success_url' => env('FRONTEND_URL') . '/payment/success?session_id={CHECKOUT_SESSION_ID}',
-                'cancel_url'  => env('FRONTEND_URL') . '/payment/cancel?session_id={CHECKOUT_SESSION_ID}',
+                'success_url' => rtrim(config('app.frontend_url'), '/') . '/payment/success?session_id={CHECKOUT_SESSION_ID}',
+                'cancel_url'  => rtrim(config('app.frontend_url'), '/') . '/payment/cancel?session_id={CHECKOUT_SESSION_ID}',
+
                 'currency'    => 'usd',
                 'metadata'    => [
                     'order_id' => $order->id,
+                    'first_name' => $request->first_name,
+                    'last_name' => $request->last_name,
+                    'phone' => $request->phone,
+                    'address' => $request->address,
+                    'city' => $request->city,
+                    'zipcode' => $request->zipcode,
                 ],
                 'expires_at' => now()->addHour(1)->timestamp,
                 'after_expiration' => [
@@ -226,7 +252,7 @@ class StripeGatewayService
         try {
             $order = \App\Models\Order::create([
                 'user_id'  => auth('api')->id(),
-                'name'     => $request->name,
+                'name' => $request->first_name . ' ' . $request->last_name,
                 'email'    => $request->email,
                 'phone'    => $request->phone,
                 'address'  => $request->address,
@@ -235,6 +261,36 @@ class StripeGatewayService
                 'total'    => $trustedTotal,
                 'status'   => 'pending',
                 'is_paid'  => false,
+            ]);
+
+            ShippingInformation::updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'first_name' => $request->first_name,
+                    'last_name' => $request->last_name,
+                    'phone' => $request->phone,
+                    'address' => $request->address,
+                    'city' => $request->city,
+                    'zipcode' => $request->zipcode,
+                ]
+            );
+
+            $shipping = ShippingInformation::updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'first_name' => $request->first_name,
+                    'last_name'  => $request->last_name,
+                    'phone'      => $request->phone,
+                    'address'    => $request->address,
+                    'city'       => $request->city,
+                    'zipcode'    => $request->zipcode,
+                ]
+            );
+
+            Log::info('Shipping information saved', [
+                'order_id'    => $order->id,
+                'shipping_id' => $shipping->id,
+                'wasCreated'  => $shipping->wasRecentlyCreated,
             ]);
 
             foreach ($validatedItems as $item) {

@@ -8,11 +8,7 @@ class BaseCard extends Model
 {
     protected $table = 'base_cards';
 
-    protected $fillable = [
-        'name',
-        'image',
-        'product_id',
-    ];
+    protected $fillable = ['product_id', 'name', 'image', 'card_type'];
 
     public function product()
     {

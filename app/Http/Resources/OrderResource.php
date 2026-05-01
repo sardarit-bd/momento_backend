@@ -26,7 +26,7 @@ class OrderResource extends JsonResource
             'is_paid' => $this->is_paid,
             'is_customized' => $this->is_customized,
             'customized_file' => $this->when($this->customized_file, function () {
-                return asset('public/storage/' . $this->customized_file);
+                return asset('storage/' . $this->customized_file);
             }),
             'payment_status' => $this->is_paid ? 'Paid' : 'Pending',
             'order_type' => $this->is_customized ? 'Customized' : 'Simple',

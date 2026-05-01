@@ -16,6 +16,7 @@ class Order extends Model
     protected $casts = [
         'is_paid' => 'boolean',
         'is_customized' => 'boolean',
+        'customized_file' => 'array',
     ];
 
     public function orderItems()

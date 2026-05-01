@@ -67,6 +67,7 @@ class StripeGatewayService
                 $validatedItems[] = [
                     'product_id'   => $product->id,
                     'name'         => $product->name,
+                    'product_type' => $product->type ?? 'simple',
                     'qty'          => $quantity,
                     'price'        => $sellingPrice,
                     'total'        => $lineTotal,
@@ -112,17 +113,19 @@ class StripeGatewayService
 
         try {
 
+            $user = auth('api')->user();
+
             $order = \App\Models\Order::create([
-                'user_id'  => auth('api')->id(),
-                'name'     => $request->first_name . ' ' . $request->last_name,
-                'email'    => $request->email,
-                'phone'    => $request->phone,
-                'address'  => $request->address,
-                'city'     => $request->city,
-                'zipcode'  => $request->zipcode,
-                'total'    => $trustedTotal,
-                'status'   => 'pending',
-                'is_paid'  => false,
+                'user_id' => $user?->id ?? ($request->userID ?? null),
+                'name'    => $request->first_name . ' ' . $request->last_name,
+                'email'   => $user?->email ?? $request->email,
+                'phone'   => $request->phone,
+                'address' => $request->address,
+                'city'    => $request->city,
+                'zipcode' => $request->zipcode,
+                'total'   => $trustedTotal,
+                'status'  => 'pending',
+                'is_paid' => false,
             ]);
 
             ShippingInformation::updateOrCreate(
@@ -140,6 +143,9 @@ class StripeGatewayService
             Log::info('Order created for Stripe checkout', ['order_id' => $order->id]);
 
 
+            $isCustomized = false;
+            $customizedFiles = [];
+
             foreach ($validatedItems as $item) {
                 $orderItem = $order->orderItems()->create([
                     'product_id' => $item['product_id'],
@@ -147,29 +153,48 @@ class StripeGatewayService
                     'price'      => $item['price'],
                 ]);
 
-                $cardSaveResult = $this->storeOrderItemCards($orderItem, $item['FinalProduct'] ?? [], $item['customization_mode'] ?? null);
+                // Determine if this item is customized based on product type
+                $productType = strtolower($item['product_type'] ?? 'simple');
+                $hasCustomization = match($productType) {
+                    'trading', 'customizable' => true,  
+                    'simple'                  => false,
+                    default                   => !empty($item['FinalProduct']),
+                };
+
+                $cardSaveResult = $this->storeOrderItemCards(
+                    $orderItem,
+                    $item['FinalProduct'] ?? [],
+                    $item['customization_mode'] ?? null
+                );
+
                 if ($cardSaveResult['count'] > 0) {
+                    $isCustomized = true;
                     $orderItem->update([
-                        'customization_mode' => $cardSaveResult['mode'],
-                        'card_design_count' => $cardSaveResult['count'],
+                        'customization_mode'   => $cardSaveResult['mode'],
+                        'card_design_count'    => $cardSaveResult['count'],
                         'customization_images' => null,
                     ]);
+                } elseif ($hasCustomization) {
+                    $isCustomized = true;
                 }
 
                 // Handle PDF files
                 if (!empty($item['FinalPDF']['data'])) {
-                    $pdfData = base64_decode($item['FinalPDF']['data']);
+                    $pdfData  = base64_decode($item['FinalPDF']['data']);
                     $fileName = 'custom_pdf_' . time() . '_' . $item['product_id'] . '.pdf';
                     $filePath = 'customized_files/' . $fileName;
 
                     Storage::disk('public')->put($filePath, $pdfData);
-
-                    $order->update([
-                        'is_customized'   => true,
-                        'customized_file' => $filePath,
-                    ]);
+                    $customizedFiles[] = $filePath;
+                    $isCustomized = true;
                 }
             }
+
+            // Update order with customization summary
+            $order->update([
+                'is_customized'   => $isCustomized,
+                'customized_file' => !empty($customizedFiles) ? $customizedFiles : null,
+            ]);
 
 
             $order->orderHasPaids()->create([
@@ -250,17 +275,19 @@ class StripeGatewayService
         DB::beginTransaction();
 
         try {
+            $user = auth('api')->user();
+
             $order = \App\Models\Order::create([
-                'user_id'  => auth('api')->id(),
-                'name' => $request->first_name . ' ' . $request->last_name,
-                'email'    => $request->email,
-                'phone'    => $request->phone,
-                'address'  => $request->address,
-                'city'     => $request->city,
-                'zipcode'  => $request->zipcode,
-                'total'    => $trustedTotal,
-                'status'   => 'pending',
-                'is_paid'  => false,
+                'user_id' => $user?->id ?? ($request->userID ?? null),
+                'name'    => $request->first_name . ' ' . $request->last_name,
+                'email'   => $user?->email ?? $request->email, // real email from auth user
+                'phone'   => $request->phone,
+                'address' => $request->address,
+                'city'    => $request->city,
+                'zipcode' => $request->zipcode,
+                'total'   => $trustedTotal,
+                'status'  => 'pending',
+                'is_paid' => false,
             ]);
 
             ShippingInformation::updateOrCreate(

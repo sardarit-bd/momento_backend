@@ -15,6 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'roles' => App\Http\Middleware\RoleCheck::class,
         ]);
+
+        $middleware->validateCsrfTokens(except: [
+            'api/webhook/stripe',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

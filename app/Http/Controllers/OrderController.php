@@ -48,7 +48,7 @@ class OrderController extends Controller
 
     public function adminOrders(Request $request)
     {
-        $limit = (int) $request->query('limit', 20);
+        $limit = (int) $request->query('limit', 15);
         $limit = max(1, min($limit, 100));
 
         $orders = Order::query()

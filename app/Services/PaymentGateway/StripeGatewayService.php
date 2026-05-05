@@ -381,6 +381,14 @@ class StripeGatewayService
      */
     private function storeOrderItemCards($orderItem, array $finalProduct, ?string $requestedMode = null): array
     {
+
+        Log::info('storeOrderItemCards called', [
+            'order_item_id' => $orderItem->id,
+            'finalProduct_count' => count($finalProduct),
+            'requestedMode' => $requestedMode,
+            'finalProduct_sample' => array_slice($finalProduct, 0, 1), // first entry only
+        ]);
+        
         if (empty($finalProduct)) {
             return ['count' => 0, 'mode' => 'none'];
         }

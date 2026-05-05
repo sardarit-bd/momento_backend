@@ -44,12 +44,144 @@ class OrderController extends Controller
             'data'    => ['orders' => $orders],
         ]);
     }
-    
+
+
+    public function adminOrders(Request $request)
+    {
+        $limit = (int) $request->query('limit', 20);
+        $limit = max(1, min($limit, 100));
+
+        $orders = Order::query()
+            ->select([
+                'id',
+                'name',
+                'email',
+                'total',
+                'is_customized',
+                'is_paid',
+                'created_at',
+            ])
+            ->orderByDesc('created_at')
+            ->paginate($limit);
+
+        $formatted = $orders->getCollection()->map(function ($order) {
+            return [
+                'id'            => $order->id,
+                'name'          => $order->name,
+                'email'         => $order->email,
+                'total'         => $order->total,
+                'is_customized' => $order->is_customized,
+                'is_paid'       => $order->is_paid,
+                'created_at'    => $order->created_at,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'orders' => $formatted,
+                'pagination' => [
+                    'current_page' => $orders->currentPage(),
+                    'last_page'    => $orders->lastPage(),
+                    'per_page'     => $orders->perPage(),
+                    'total'        => $orders->total(),
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Heavy detail for modal only
+     * GET /api/admin/orders/{id}
+     */
+    public function adminOrderDetails($id)
+    {
+        $order = Order::with([
+            'orderItems.product',
+            'orderItems.cards',
+            'orderHasPaids',
+        ])->findOrFail($id);
+
+        $formatted = [
+            'id'                => $order->id,
+            'name'              => $order->name,
+            'email'             => $order->email,
+            'phone'             => $order->phone,
+            'address'           => $order->address,
+            'city'              => $order->city,
+            'zipcode'           => $order->zipcode,
+            'total'             => $order->total,
+            'status'            => $order->status,
+            'is_paid'           => $order->is_paid,
+            'is_customized'     => $order->is_customized,
+            'customized_file'   => $order->customized_file,
+            'customized_file_url' => $order->customized_file_url ?? null, // keep if your model has it
+            'stripe_session_id' => $order->stripe_session_id,
+            'created_at'        => $order->created_at,
+
+            'order_items' => $order->orderItems->map(function ($item) {
+                return [
+                    'id'                 => $item->id,
+                    'product_id'         => $item->product_id,
+                    'quantity'           => $item->quantity,
+                    'price'              => $item->price,
+                    'customization_mode' => $item->customization_mode,
+                    'card_design_count'  => $item->card_design_count,
+                    'product'            => $item->product ? [
+                        'id'   => $item->product->id,
+                        'name' => $item->product->name,
+                        'type' => $item->product->type,
+                    ] : null,
+                    'cards' => $item->cards->map(function ($card) {
+                        $mime = $card->image_mime ?? 'image/png';
+                        $b64  = $card->image_blob ? base64_encode($card->image_blob) : null;
+
+                        return [
+                            'id'        => $card->id,
+                            'side'      => $card->side,
+                            'rank'      => $card->rank,
+                            'position'  => $card->position,
+                            'card_type' => $card->card_type,
+                            'image'     => $b64 ? "data:{$mime};base64,{$b64}" : null,
+                        ];
+                    }),
+                ];
+            }),
+
+            'payments' => $order->orderHasPaids->map(function ($p) {
+                return [
+                    'id'             => $p->id,
+                    'amount'         => $p->amount,
+                    'method'         => $p->method,
+                    'status'         => $p->status,
+                    'transaction_id' => $p->transaction_id,
+                ];
+            }),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'order' => $formatted,
+            ],
+        ]);
+    }
+        
     
 
     public function store(Request $request)
     {
         $user = User::where('id', $request->userID)->latest()->first();
+
+        if ($request->has('items') && !$request->has('order_items')) {
+            $request->merge(['order_items' => $request->input('items')]);
+        }
+
+        if (!$request->has('name') && $request->has('first_name')) {
+            $request->merge([
+                'name' => trim($request->first_name . ' ' . $request->last_name)
+            ]);
+        }
         
 
         // Validate request

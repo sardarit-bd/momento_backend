@@ -133,4 +133,7 @@ Route::post('/webhook/stripe', [WebhookController::class, 'handle']);
 Route::middleware('auth:api')->group(function () {
     Route::get('/order/{id}', [OrderController::class, 'show']);
     Route::post('/order/{order}/retry', [OrderController::class, 'retryPayment']);
+    Route::get('/admin/orders', [OrderController::class, 'adminOrders']);
+    Route::get('/admin/orders/{id}', [OrderController::class, 'adminOrderDetails']);
+
 });

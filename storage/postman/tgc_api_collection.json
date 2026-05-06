@@ -1,0 +1,139 @@
+{
+  "info": {
+    "name": "TGC APIs",
+    "description": "Postman collection for TGC endpoints only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create Game",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"My Game\",\n  \"description\": \"Demo game\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/tgc/games",
+          "host": ["{{base_url}}"],
+          "path": ["api", "tgc", "games"]
+        }
+      }
+    },
+    {
+      "name": "Create Deck",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Main Deck\",\n  \"card_count\": 54\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/tgc/games/{{game_id}}/decks",
+          "host": ["{{base_url}}"],
+          "path": ["api", "tgc", "games", "{{game_id}}", "decks"]
+        }
+      }
+    },
+    {
+      "name": "Create Card (multipart)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "deck_id", "value": "{{deck_id}}", "type": "text" },
+            { "key": "name", "value": "Ace of Spades", "type": "text" },
+            { "key": "face_image", "type": "file", "src": "" },
+            { "key": "back_image", "type": "file", "src": "" }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/tgc/decks/{{deck_id}}/cards",
+          "host": ["{{base_url}}"],
+          "path": ["api", "tgc", "decks", "{{deck_id}}", "cards"]
+        }
+      }
+    },
+    {
+      "name": "Proof Card",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"card\": {\n    \"back_id\": \"{{back_id}}\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/tgc/cards/{{card_id}}/proof",
+          "host": ["{{base_url}}"],
+          "path": ["api", "tgc", "cards", "{{card_id}}", "proof"]
+        }
+      }
+    },
+    {
+      "name": "Create Cart",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/tgc/carts",
+          "host": ["{{base_url}}"],
+          "path": ["api", "tgc", "carts"]
+        }
+      }
+    },
+    {
+      "name": "Add SKU To Cart",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cart_id\": \"{{cart_id}}\",\n  \"sku_id\": \"{{sku_id}}\",\n  \"quantity\": 1\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/tgc/carts/{{cart_id}}/items",
+          "host": ["{{base_url}}"],
+          "path": ["api", "tgc", "carts", "{{cart_id}}", "items"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "https://liveserver" },
+    { "key": "token", "value": "" },
+    { "key": "game_id", "value": "" },
+    { "key": "deck_id", "value": "" },
+    { "key": "card_id", "value": "" },
+    { "key": "back_id", "value": "" },
+    { "key": "cart_id", "value": "" },
+    { "key": "sku_id", "value": "" }
+  ]
+}

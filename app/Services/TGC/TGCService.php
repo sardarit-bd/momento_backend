@@ -54,13 +54,15 @@ class TGCService
             'name' => $dto->name,
             'identity' => $dto->identity,
             'has_proofed_back' => $dto->hasProofedBack,
+            'back_id' => $dto->backId,
         ]);
     }
 
     public function uploadFile(UploadFileDTO $dto): array
     {
-        return $this->requestMultipart('POST', '/files', [
+        return $this->requestMultipart('POST', '/file', [
             'deck_id' => $dto->deckId,
+            'folder_id' => $dto->folderId,
             'label' => $dto->label,
         ], $dto->filePath, $dto->fileName, $dto->mimeType);
     }
@@ -81,8 +83,8 @@ class TGCService
             'name' => $dto->name,
             'face_id' => $dto->faceFileId,
             'back_id' => $dto->backFileId,
-            'has_proofed_face' => 1,
-            'has_proofed_back' => 1,
+            'has_proofed_face' => $dto->hasProofedFace,
+            'has_proofed_back' => $dto->hasProofedBack,
         ]);
     }
 
@@ -107,7 +109,9 @@ class TGCService
 
     public function createCart(): array
     {
-        return $this->request('POST', '/cart', []);
+        return $this->request('POST', '/cart', [
+            'api_key_id' => config('services.tgc.api_key_id'),
+        ]);
     }
 
     public function addSkuToCart(AddToCartDTO $dto): array
@@ -118,9 +122,13 @@ class TGCService
             'quantity' => $dto->quantity,
         ]);
 
-        return $this->request('POST', '/cart/'.$dto->cartId.'/sku/'.$dto->skuId, [
+        $result = $this->request('POST', '/cart/'.$dto->cartId.'/sku/'.$dto->skuId, [
             'quantity' => $dto->quantity,
         ]);
+
+        Log::debug('addSkuToCart result', ['result' => $result]);
+
+        return $result;
     }
 
     private function request(string $method, string $path, array $payload): array
@@ -209,6 +217,16 @@ class TGCService
         }
 
         return $response->json() ?? [];
+    }
+
+    public function getCart(string $cartId): array
+    {
+        return $this->request('GET', '/cart/'.$cartId, []);
+    }
+
+    public function getCartItems(string $cartId): array
+    {
+        return $this->request('GET', '/cart/'.$cartId.'/items', []);
     }
 
     private function buildUrl(string $path): string

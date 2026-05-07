@@ -15,6 +15,7 @@ use App\Http\Requests\TGC\CreateCardRequest;
 use App\Http\Requests\TGC\CreateCardFromFaceRequest;
 use App\Http\Requests\TGC\ProofCardRequest;
 use App\Http\Resources\TGC\CardResource;
+use Log;
 
 class CardController extends Controller
 {
@@ -31,32 +32,36 @@ class CardController extends Controller
         $faceFile = $request->file('face_image');
         $face = $this->uploadCardFileAction->handle(new UploadFileDTO(
             deckId: $deckId,
+            folderId: (string) $request->input('folder_id'),
             filePath: (string) $faceFile?->getRealPath(),
             fileName: (string) $faceFile?->getClientOriginalName(),
             mimeType: (string) $faceFile?->getMimeType(),
             label: 'face-image',
         ));
 
+        $faceFileId = (string) data_get($face, 'result.id');
+
         $backFileId = null;
         if ($request->hasFile('back_image')) {
             $backFile = $request->file('back_image');
             $back = $this->uploadCardFileAction->handle(new UploadFileDTO(
                 deckId: $deckId,
+                folderId: (string) $request->input('folder_id'),
                 filePath: (string) $backFile?->getRealPath(),
                 fileName: (string) $backFile?->getClientOriginalName(),
                 mimeType: (string) $backFile?->getMimeType(),
                 label: 'back-image',
             ));
-            $backFileId = (string) data_get($back, 'id');
+            $backFileId = (string) data_get($back, 'result.id');
         }
 
-        $request->merge([
-            'deck_id' => $deckId,
-            'face_file_id' => (string) data_get($face, 'id'),
-            'back_file_id' => $backFileId,
-        ]);
-
-        $payload = $this->createCardAction->handle(CreateCardDTO::fromRequest($request));
+        $payload = $this->createCardAction->handle(new CreateCardDTO(
+            deckId: $deckId,
+            name: (string) $request->string('name'),
+            faceFileId: $faceFileId,
+            backFileId: $backFileId ?: null,
+            hasProofedBack: $backFileId ? 1 : 0,
+        ));
 
         return (new CardResource($payload))->response()->setStatusCode(201);
     }

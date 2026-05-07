@@ -8,6 +8,7 @@ use App\DTOs\TGC\AddToCartDTO;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\TGC\AddToCartRequest;
 use App\Http\Resources\TGC\CartResource;
+use App\Services\TGC\TGCService;
 use Illuminate\Http\Request;
 
 class CartController extends Controller
@@ -15,7 +16,13 @@ class CartController extends Controller
     public function __construct(
         private readonly CreateCartAction $createCartAction,
         private readonly AddSkuToCartAction $addSkuToCartAction,
+        private readonly TGCService $tgcService,
     ) {
+    }
+
+    public function items(string $cartId)
+    {
+        return response()->json($this->tgcService->getCartItems($cartId));
     }
 
     public function store(Request $request)

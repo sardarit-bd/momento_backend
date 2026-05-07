@@ -25,6 +25,9 @@ class CreateCardRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'face_image' => ['required', 'file', 'mimes:png,jpeg', 'max:20480'],
             'back_image' => ['nullable', 'file', 'mimes:png,jpeg', 'max:20480'],
+            'face_file_id' => ['nullable', 'string'], 
+            'back_file_id' => ['nullable', 'string'],
+            'folder_id' => ['nullable', 'string'],
         ];
     }
 }

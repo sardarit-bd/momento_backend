@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\TGC\TGCService;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TGC\CardController;
 use App\Http\Controllers\Api\TGC\CartController;
@@ -19,4 +20,8 @@ Route::middleware('auth:api')->prefix('tgc')->group(function (): void {
     Route::put('/cards/{cardId}/proof', [CardController::class, 'proof']);
     Route::post('/carts', [CartController::class, 'store']);
     Route::post('/carts/{cartId}/items', [CartController::class, 'addItem']);
+
+    Route::get('/carts/{cartId}', fn(string $cartId) => app(TGCService::class)->getCart($cartId));
+    
+    Route::get('/carts/{cartId}/items', [CartController::class, 'items']);
 });

@@ -13,7 +13,7 @@ readonly class CreateCardDTO
         public string $faceFileId,
         public ?string $backFileId = null,
         public int $hasProofedFace = 1,
-        public int $hasProofedBack = 1,
+        public int $hasProofedBack = 0,
     ) {
         if (trim($this->deckId) === '' || trim($this->name) === '' || trim($this->faceFileId) === '') {
             throw new InvalidArgumentException('deck_id, name and face_file_id are required');

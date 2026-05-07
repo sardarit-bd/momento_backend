@@ -10,9 +10,10 @@ class GameResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => data_get($this->resource, 'id') ?? data_get($this->resource, 'result.id'),
-            'name' => data_get($this->resource, 'name') ?? data_get($this->resource, 'result.name'),
-            'description' => data_get($this->resource, 'description') ?? data_get($this->resource, 'result.description'),
+            'id' => data_get($this->resource, 'result.id') ?? data_get($this->resource, 'id'),
+            'name' => data_get($this->resource, 'result.name') ?? data_get($this->resource, 'name'),
+            'description' => data_get($this->resource, 'result.description') ?? data_get($this->resource, 'description'),
+            'sku_id' => data_get($this->resource, 'result.sku_id') ?? data_get($this->resource, 'sku_id'),
         ];
     }
 }

@@ -9,6 +9,7 @@ readonly class UploadFileDTO
 {
     public function __construct(
         public string $deckId,
+        public string $folderId,
         public string $filePath,
         public string $fileName,
         public string $mimeType,

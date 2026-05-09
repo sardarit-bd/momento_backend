@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Http\UploadedFile;
 use Exception;
+use Log;
 
 class ProductController extends Controller
 {
@@ -131,13 +132,6 @@ class ProductController extends Controller
         $storedPaths = [];
 
         try {
-            \Log::info('cardproduct:start', [
-                'user_id' => Auth::id(),
-                'content_type' => $request->header('Content-Type'),
-                'has_main_image_file' => $request->hasFile('image'),
-                'gallery_file_count' => count($request->file('images', [])),
-                'input_keys' => array_keys($request->all()),
-            ]);
 
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
@@ -152,13 +146,6 @@ class ProductController extends Controller
                 'image' => 'nullable',
                 'images' => 'required|array|min:1',
                 'images.*' => 'required',
-            ]);
-
-            \Log::info('cardproduct:payload_debug', [
-                'type'            => $request->input('type'),
-                'has_base_cards'  => $request->has('base_cards'),
-                'base_cards_raw'  => $request->input('base_cards'),
-                'all_keys'        => array_keys($request->all()),
             ]);
 
             $validator->after(function ($validator) use ($request) {
@@ -181,12 +168,6 @@ class ProductController extends Controller
             });
 
             if ($validator->fails()) {
-                \Log::warning('Card product validation failed', [
-                    'user_id' => Auth::id(),
-                    'keys' => array_keys($request->all()),
-                    'errors' => $validator->errors()->toArray(),
-                ]);
-
                 return response()->json([
                     'success' => false,
                     'status' => 422,
@@ -200,16 +181,8 @@ class ProductController extends Controller
             }
 
             $validated = $validator->validated();
-            \Log::info('cardproduct:validation_passed', [
-                'user_id' => Auth::id(),
-                'name' => $validated['name'] ?? null,
-                'category_id' => $validated['category_id'] ?? null,
-                'has_main_image' => $request->hasFile('image') || !empty($validated['image']),
-                'images_count_input' => count($validated['images'] ?? []),
-            ]);
 
             DB::beginTransaction();
-            \Log::info('cardproduct:transaction_started', ['user_id' => Auth::id()]);
 
             $slug = !empty($validated['slug'])
                 ? Str::slug($validated['slug'])
@@ -228,21 +201,12 @@ class ProductController extends Controller
                 'short_description' => $validated['short_description'] ?? null,
                 'description' => $validated['description'] ?? null,
             ]);
-            \Log::info('cardproduct:product_created', [
-                'user_id' => Auth::id(),
-                'product_id' => $product->id,
-                'slug' => $product->slug,
-            ]);
 
             $mainImageInput = $request->file('image') ?: ($validated['image'] ?? null);
             if (!empty($mainImageInput)) {
                 $mainImagePath = $this->saveImageInput($mainImageInput, 'products/main');
                 $storedPaths[] = $mainImagePath;
                 $product->update(['image' => $mainImagePath]);
-                \Log::info('cardproduct:main_image_saved', [
-                    'product_id' => $product->id,
-                    'path' => $mainImagePath,
-                ]);
             }
 
             $galleryInputs = $request->file('images', []);
@@ -264,11 +228,6 @@ class ProductController extends Controller
             }
 
             DB::commit();
-            \Log::info('cardproduct:transaction_committed', [
-                'user_id' => Auth::id(),
-                'product_id' => $product->id,
-                'stored_files_count' => count($storedPaths),
-            ]);
 
             return $this->successResponse(
                 'Card product created successfully',
@@ -277,10 +236,6 @@ class ProductController extends Controller
             );
         } catch (ValidationException $e) {
             DB::rollBack();
-            \Log::warning('cardproduct:validation_exception', [
-                'user_id' => Auth::id(),
-                'errors' => $e->errors(),
-            ]);
             return $this->validationErrorResponse($e);
         } catch (Exception $e) {
             DB::rollBack();
@@ -291,13 +246,7 @@ class ProductController extends Controller
 
             foreach ($storedPaths as $path) {
                 Storage::disk('public')->delete($path);
-                \Log::info('cardproduct:file_rollback_deleted', ['path' => $path]);
             }
-
-            \Log::error('Card product create failed: ' . $e->getMessage(), [
-                'request_user_id' => Auth::id(),
-                'trace' => $e->getTraceAsString(),
-            ]);
 
             $message = $e->getMessage();
 
@@ -399,10 +348,6 @@ class ProductController extends Controller
             ]);
 
         } catch (Exception $e) {
-            \Log::error('showCardProduct failed: ' . $e->getMessage(), [
-                'slug'  => $slug,
-                'trace' => $e->getTraceAsString(),
-            ]);
 
             return $this->errorResponse('Failed to fetch product.');
         }
@@ -727,12 +672,18 @@ class ProductController extends Controller
             if ($isUpdate) $product->base_cards()->delete();
 
             foreach ($request->base_cards as $index => $item) {
-                $base64    = is_array($item) ? $item['image'] : $item;
-                $cardType  = is_array($item) ? ($item['card_type'] ?? null) : null;
+                $base64        = is_array($item) ? $item['image']    : $item;
+                $cardType      = is_array($item) ? ($item['card_type']  ?? null) : null;
+                $originalName  = is_array($item) ? ($item['filename']   ?? null) : null;
 
-                $path = $this->saveBase64Image($base64, 'products/customizations/base_cards');
+                $path = $this->saveBase64Image(
+                    $base64,
+                    'products/customizations/base_cards',
+                    $originalName
+                );
+
                 $product->base_cards()->create([
-                    'name'       => $cardType ?? ('Base Card ' . ($index + 1)),
+                    'name'       => $item['name'] ?? $cardType ?? ('Base Card ' . ($index + 1)),
                     'product_id' => $product->id,
                     'image'      => $path,
                     'card_type'  => $cardType,
@@ -744,11 +695,11 @@ class ProductController extends Controller
     /**
      * Save base64 image and return path.
      */
-    private function saveBase64Image(string $base64Image, string $folder): string
+    private function saveBase64Image(string $base64Image, string $folder, ?string $originalFilename = null): string
     {
         $base64Image = trim($base64Image);
 
-        if(preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
+        if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
             $imageData = substr($base64Image, strpos($base64Image, ',') + 1);
             $extension = strtolower($type[1]);
         } else {
@@ -761,18 +712,20 @@ class ProductController extends Controller
             throw new Exception('Invalid base64 image payload');
         }
 
-        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) $extension = 'png';
+        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+            $extension = 'png';
+        }
 
-        $fileName = time() . '_' . uniqid() . '.' . $extension;
+        // Use original filename if provided, otherwise generate random
+        if ($originalFilename) {
+            $fileName = pathinfo($originalFilename, PATHINFO_FILENAME) . '.' . $extension;
+        } else {
+            $fileName = time() . '_' . uniqid() . '.' . $extension;
+        }
+
         $filePath = $folder . '/' . $fileName;
 
         if (!Storage::disk('public')->put($filePath, $decoded)) {
-            \Log::error('cardproduct:image_storage_put_failed', [
-                'disk' => 'public',
-                'path' => $filePath,
-                'folder' => $folder,
-                'bytes' => strlen($decoded),
-            ]);
             throw new Exception('Failed to save image to storage');
         }
 

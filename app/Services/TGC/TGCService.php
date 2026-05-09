@@ -3,6 +3,7 @@
 namespace App\Services\TGC;
 
 use App\DTOs\TGC\AddToCartDTO;
+use App\DTOs\TGC\CreateAddressDTO;
 use App\DTOs\TGC\CreateCardDTO;
 use App\DTOs\TGC\CreateCardFromFaceDTO;
 use App\DTOs\TGC\CreateDeckDTO;
@@ -29,10 +30,6 @@ class TGCService
         if ($designerId === '') {
             throw new TGCApiException('TGC designer_id is not configured', 500);
         }
-
-        Log::debug('TGC designer_id', [
-            'designer_id' => $designerId,
-        ]);
 
         return $this->request('POST', '/game', [
             'name'        => $dto->name,
@@ -116,17 +113,9 @@ class TGCService
 
     public function addSkuToCart(AddToCartDTO $dto): array
     {
-        Log::debug('addSkuToCart DTO', [
-            'cartId' => $dto->cartId,
-            'skuId' => $dto->skuId,
-            'quantity' => $dto->quantity,
-        ]);
-
         $result = $this->request('POST', '/cart/'.$dto->cartId.'/sku/'.$dto->skuId, [
             'quantity' => $dto->quantity,
         ]);
-
-        Log::debug('addSkuToCart result', ['result' => $result]);
 
         return $result;
     }
@@ -172,11 +161,6 @@ class TGCService
 
     private function send(callable $sender, string $method, string $path): array
     {
-        Log::debug('TGC request', [
-            'method' => $method,
-            'url' => $this->buildUrl($path),
-        ]);
-
         $sessionId = $this->sessionManager->getSessionId();
         $response = $sender($sessionId);
 
@@ -199,10 +183,6 @@ class TGCService
 
     private function handleResponse(Response $response): array
     {
-        Log::debug('TGC raw response', [
-            'status' => $response->status(),
-            'body'   => $response->body(),
-        ]);
         if (! $response->successful()) {
             Log::error('TGC response error', [
                 'status' => $response->status(),
@@ -219,6 +199,21 @@ class TGCService
         return $response->json() ?? [];
     }
 
+    public function createAddress(CreateAddressDTO $dto): array
+    {
+        return $this->request('POST', '/address', [
+            'name'         => $dto->name,
+            'company'      => $dto->company,
+            'address1'     => $dto->address1,
+            'address2'     => $dto->address2,
+            'city'         => $dto->city,
+            'state'        => $dto->state,
+            'postal_code'  => $dto->postalCode,
+            'country'      => $dto->country,
+            'phone_number' => $dto->phoneNumber,
+        ]);
+    }
+
     public function getCart(string $cartId): array
     {
         return $this->request('GET', '/cart/'.$cartId, []);
@@ -228,6 +223,59 @@ class TGCService
     {
         return $this->request('GET', '/cart/'.$cartId.'/items', []);
     }
+
+    public function updateCart(string $cartId, array $data): array
+    {
+        return $this->request('PUT', '/cart/'.$cartId, $data);
+    }
+
+    public function uploadCardFaceImage(string $deckId, string $folderId, string $cardName, string $absoluteImagePath): array
+    {
+        $mimeType = mime_content_type($absoluteImagePath) ?: 'image/jpeg';
+
+        return $this->requestMultipart('POST', '/file', [
+            'name'      => $cardName,
+            'folder_id' => $folderId,
+            'has_proofed' => false,
+        ], $absoluteImagePath, basename($absoluteImagePath), $mimeType);
+    }
+
+    /**
+     * Returns a cloned instance using a specific token (for user-supplied TGC tokens).
+     */
+    // public function withToken(string $token): static
+    // {
+    //     $clone = clone $this;
+    //     $clone->token = $token; // assumes $this->token drives Authorization header
+    //     return $clone;
+    // }
+
+    /**
+     * Upload a card image to a deck.
+     */
+    // public function createCard(string $deckId, string $folderId, string $name, string $absoluteImagePath): array
+    // {
+    //     return $this->http()
+    //         ->attach('face_image', fopen($absoluteImagePath, 'r'), basename($absoluteImagePath))
+    //         ->post("/tgc/decks/{$deckId}/cards", [
+    //             'name'      => $name,
+    //             'folder_id' => $folderId,
+    //         ])
+    //         ->json();
+    // }
+
+    /**
+     * Add a SKU item to a cart.
+     */
+    // public function addItemToCart(string $cartId, string $skuId, int $quantity = 1): array
+    // {
+    //     return $this->http()
+    //         ->post("/tgc/carts/{$cartId}/items", [
+    //             'sku_id'   => $skuId,
+    //             'quantity' => $quantity,
+    //         ])
+    //         ->json();
+    // }
 
     private function buildUrl(string $path): string
     {

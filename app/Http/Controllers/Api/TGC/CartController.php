@@ -32,6 +32,15 @@ class CartController extends Controller
         return (new CartResource($payload))->response()->setStatusCode(201);
     }
 
+    public function update(Request $request, string $cartId)
+    {
+        $payload = $this->tgcService->updateCart($cartId, [
+            'shipping_address_id' => (string) $request->input('shipping_address_id'),
+        ]);
+
+        return (new CartResource($payload))->response()->setStatusCode(200);
+    }
+
     public function addItem(AddToCartRequest $request, string $cartId)
     {
         $payload = $this->addSkuToCartAction->handle(

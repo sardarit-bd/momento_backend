@@ -70,11 +70,6 @@ class TGCSessionManager
             throw new TGCAuthException('Unable to authenticate with TGC');
         }
 
-        Log::debug('TGC session raw response', [
-            'body' => $response->json(),
-        ]);
-
-
         $sessionId = (string) (
             data_get($response->json(), 'result.id')
             ?? data_get($response->json(), 'session_id')
@@ -101,11 +96,7 @@ class TGCSessionManager
                 ]);
 
             $designerId = (string) data_get($designerResponse->json(), 'result.id', '');
-            Log::debug('TGC designer response', ['body' => $designerResponse->json()]);
         } catch (RequestException $e) {
-            Log::warning('TGC designer lookup failed', [
-                'message' => $e->getMessage(),
-            ]);
         }
 
         Cache::put(self::CACHE_KEY, $sessionId, now()->addHours($ttlHours));

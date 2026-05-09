@@ -29,11 +29,6 @@ class WebhookController extends Controller
                 $webhookSecret
             );
 
-            Log::info('Stripe webhook received', [
-                'type' => $event->type,
-                'id'   => $event->id,
-            ]);
-
             switch ($event->type) {
                 case 'checkout.session.completed':
                     return $this->handleCheckoutCompleted($event->data->object);
@@ -42,7 +37,6 @@ class WebhookController extends Controller
                     return $this->handleCheckoutExpired($event->data->object);
 
                 default:
-                    Log::info('Unhandled webhook event', ['type' => $event->type]);
                     return response()->json(['received' => true]);
             }
 
@@ -68,11 +62,6 @@ class WebhookController extends Controller
             return response()->json(['error' => 'Missing order ID'], 400);
         }
 
-        Log::info('Processing payment completion', [
-            'order_id'          => $orderId,
-            'stripe_session_id' => $session->id,
-        ]);
-
         $order = Order::with('orderHasPaids')->find($orderId);
 
         if (!$order) {
@@ -95,11 +84,6 @@ class WebhookController extends Controller
                     'transaction_id' => $session->payment_intent ?? $session->id,
                     'notes'          => 'Payment completed successfully via Stripe.',
                 ]);
-
-                Log::info('Payment record marked as completed', [
-                    'payment_id'     => $payment->id,
-                    'transaction_id' => $session->payment_intent ?? $session->id,
-                ]);
             } else {
                 $payment = $order->orderHasPaids()->create([
                     'amount' => $order->total,
@@ -108,11 +92,6 @@ class WebhookController extends Controller
                     'transaction_id' => $session->payment_intent ?? $session->id,
                     'notes' => 'Payment completed successfully via Stripe (created by webhook reconciliation).',
                 ]);
-
-                Log::warning('Stripe payment row missing; created completed row from webhook', [
-                    'order_id' => $orderId,
-                    'payment_id' => $payment->id,
-                ]);
             }
 
             // 2. Update order as paid and completed ✅
@@ -120,11 +99,6 @@ class WebhookController extends Controller
                 'is_paid'           => true,
                 'status'            => 'completed',
                 'stripe_session_id' => $session->id,
-            ]);
-
-            Log::info('Order marked as paid and completed', [
-                'order_id'       => $order->id,
-                'transaction_id' => $session->payment_intent ?? $session->id,
             ]);
 
             // 3. Save shipping info if not already saved
@@ -142,11 +116,6 @@ class WebhookController extends Controller
 
             DB::commit();
 
-            Log::info('Webhook processing complete', [
-                'order_id' => $order->id,
-                'is_paid'  => $order->is_paid,
-                'status'   => $order->status,
-            ]);
 
             return response()->json([
                 'received' => true,
@@ -172,20 +141,17 @@ class WebhookController extends Controller
         $orderId = $session->metadata->order_id ?? null;
 
         if (!$orderId) {
-            Log::info('Checkout expired without order_id');
             return response()->json(['received' => true]);
         }
 
         $order = Order::find($orderId);
 
         if (!$order) {
-            Log::warning('Order not found for expired session', ['order_id' => $orderId]);
             return response()->json(['received' => true]);
         }
 
         // Don't touch already paid orders
         if ($order->is_paid) {
-            Log::warning('Expired session but order already paid — skipping', ['order_id' => $orderId]);
             return response()->json(['received' => true]);
         }
 
@@ -210,11 +176,6 @@ class WebhookController extends Controller
                     'status'         => 'failed',
                     'transaction_id' => $session->id,
                     'notes'          => $notes,
-                ]);
-
-                Log::info('Payment marked as failed due to expiration', [
-                    'order_id'     => $orderId,
-                    'recovery_url' => $recoveryUrl ?? 'none',
                 ]);
             }
 

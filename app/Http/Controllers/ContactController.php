@@ -31,10 +31,6 @@ class ContactController extends Controller
           $sent =  Mail::to('contact@momentocardgames.com')->send(new contactMail($request->name, $request->email, $request->sub, $request->mes));
         }
 
-        if($sent){
-            Log::info('Email sent successfully');
-        }
-
         return response()->json([
             'success' => true,
             'status'  => 200,

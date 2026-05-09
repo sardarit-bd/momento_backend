@@ -140,9 +140,6 @@ class StripeGatewayService
                 ]
             );
 
-            Log::info('Order created for Stripe checkout', ['order_id' => $order->id]);
-
-
             $isCustomized = false;
             $customizedFiles = [];
 
@@ -204,9 +201,6 @@ class StripeGatewayService
                 'notes'  => 'Awaiting Stripe payment',
             ]);
 
-            Log::info('Order items and payment record created', ['order_id' => $order->id]);
-
-
             $stripeItems = array_map(function ($item) {
                 return [
                     'name'  => $item['name'],
@@ -218,11 +212,6 @@ class StripeGatewayService
 
             $gateway = PaymentGatewayFactory::make('stripe');
 
-            Log::info('Stripe URLs being sent', [
-                'success_url' => rtrim(config('app.frontend_url'), '/') . '/payment/success?session_id={CHECKOUT_SESSION_ID}',
-                'cancel_url'  => rtrim(config('app.frontend_url'), '/') . '/payment/cancel?session_id={CHECKOUT_SESSION_ID}',
-            ]);
-            
             $session = $gateway->createCheckout([
                 'items'       => $stripeItems,
                 'success_url' => rtrim(config('app.frontend_url'), '/') . '/payment/success?session_id={CHECKOUT_SESSION_ID}',
@@ -250,11 +239,6 @@ class StripeGatewayService
             ]);
 
             DB::commit();
-
-            Log::info('Stripe checkout session created', [
-                'stripe_session_id' => $session->id,
-                'order_id' => $order->id,
-            ]);
 
             return response()->json([
                 'success'           => true,
@@ -313,11 +297,6 @@ class StripeGatewayService
                     'zipcode'    => $request->zipcode,
                 ]
             );
-
-            Log::info('Shipping information saved', [
-                'order_id'    => $order->id,
-                'shipping_id' => $shipping->id,
-                'wasCreated'  => $shipping->wasRecentlyCreated,
             ]);
 
             foreach ($validatedItems as $item) {
@@ -359,8 +338,6 @@ class StripeGatewayService
 
             DB::commit();
 
-            Log::info('COD order created', ['order_id' => $order->id]);
-
             return response()->json([
                 'success'  => true,
                 'gateway'  => 'cod',
@@ -381,13 +358,6 @@ class StripeGatewayService
      */
     private function storeOrderItemCards($orderItem, array $finalProduct, ?string $requestedMode = null): array
     {
-
-        Log::info('storeOrderItemCards called', [
-            'order_item_id' => $orderItem->id,
-            'finalProduct_count' => count($finalProduct),
-            'requestedMode' => $requestedMode,
-            'finalProduct_sample' => array_slice($finalProduct, 0, 1), // first entry only
-        ]);
         
         if (empty($finalProduct)) {
             return ['count' => 0, 'mode' => 'none'];

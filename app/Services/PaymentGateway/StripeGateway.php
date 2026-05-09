@@ -184,8 +184,6 @@ class StripeGateway implements PaymentGatewayInterface
                 $mime = mime_content_type($fullPath) ?: 'image/png';
                 $b64  = base64_encode(file_get_contents($fullPath));
                 $images[] = "data:{$mime};base64,{$b64}";
-            } else {
-                Log::warning("Product image not found for OrderItem ID {$item->id}: {$imagePath}");
             }
         }
 

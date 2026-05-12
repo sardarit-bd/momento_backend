@@ -4,6 +4,7 @@ namespace App\Jobs\TGC;
 
 use App\DTOs\TGC\AddToCartDTO;
 use App\DTOs\TGC\CreateCardFromFaceDTO;
+use App\DTOs\TGC\UpdateTuckBoxDTO;
 use App\DTOs\TGC\UploadFolderFileDTO;
 use App\Services\TGC\CardMergeService;
 use App\Services\TGC\TGCService;
@@ -13,7 +14,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -21,8 +21,8 @@ class PublishDeckJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 1;
-    public int $timeout = 600; // 10 minutes for 54 uploads
+    public int $tries   = 1;
+    public int $timeout = 600;
 
     public function __construct(
         private readonly string $jobId,
@@ -30,16 +30,18 @@ class PublishDeckJob implements ShouldQueue
         private readonly string $folderId,
         private readonly string $cartId,
         private readonly string $skuId,
+        private readonly string $tuckboxId,
         private readonly array  $cardStoragePaths,
-        private readonly string $tempDir,  
+        private readonly string $tempDir,
+        private readonly string $boxAbsolutePath,
     ) {}
 
     public function handle(TGCService $tgc): void
     {
         $this->setStatus('running', 'Starting card uploads...');
-
         $total = count($this->cardStoragePaths);
 
+        // ── Step 1: Upload all 54 cards ──────────────────────────────────
         foreach ($this->cardStoragePaths as $index => $storagePath) {
             $cardNumber = $index + 1;
             $cardName   = sprintf('Card %02d', $cardNumber);
@@ -48,7 +50,6 @@ class PublishDeckJob implements ShouldQueue
                 $absolutePath = Storage::disk('local')->path($storagePath);
                 $mimeType     = mime_content_type($absolutePath) ?: 'image/jpeg';
 
-                // Step 1: Upload file to folder → get file ID
                 $fileResponse = $tgc->uploadFolderFile(new UploadFolderFileDTO(
                     name:       $cardName,
                     folderId:   $this->folderId,
@@ -61,7 +62,6 @@ class PublishDeckJob implements ShouldQueue
                 $faceFileId = data_get($fileResponse, 'id')
                     ?? throw new \RuntimeException("No file ID for card {$cardNumber}");
 
-                // Step 2: Create card referencing the uploaded file
                 $tgc->createCardFromFace(new CreateCardFromFaceDTO(
                     name:           $cardName,
                     deckId:         $this->deckId,
@@ -86,7 +86,39 @@ class PublishDeckJob implements ShouldQueue
             }
         }
 
-        // Add to cart
+        // ── Step 2: Upload box image → attach to tuckbox ─────────────────
+        try {
+            $this->setStatus('running', 'Uploading tuckbox image...');
+
+            $mimeType = mime_content_type($this->boxAbsolutePath) ?: 'image/png';
+
+            $boxFileResponse = $tgc->uploadFolderFile(new UploadFolderFileDTO(
+                name:       'tuckbox-outside',
+                folderId:   $this->folderId,
+                filePath:   $this->boxAbsolutePath,
+                fileName:   basename($this->boxAbsolutePath),
+                mimeType:   $mimeType,
+                hasProofed: false,
+            ));
+
+            $boxFileId = data_get($boxFileResponse, 'id')
+                ?? throw new \RuntimeException('No file ID for tuckbox image');
+
+            $tgc->updateTuckBox(new UpdateTuckBoxDTO(
+                tuckboxId:          $this->tuckboxId,
+                outsideId:          $boxFileId,
+                hasProofedOutside:  false,
+            ));
+
+            $this->setStatus('running', 'Tuckbox image attached.');
+
+        } catch (Throwable $e) {
+            $this->setStatus('failed', 'Tuckbox upload failed: ' . $e->getMessage());
+            $this->cleanup();
+            return;
+        }
+
+        // ── Step 3: Add to cart ───────────────────────────────────────────
         try {
             $this->setStatus('running', 'Adding deck to cart...');
 
@@ -99,6 +131,7 @@ class PublishDeckJob implements ShouldQueue
             $this->setStatus('completed', 'Deck published and added to cart.', [
                 'uploaded' => $total,
                 'total'    => $total,
+                'cart_id'  => $this->cartId,
             ]);
 
         } catch (Throwable $e) {
@@ -114,22 +147,23 @@ class PublishDeckJob implements ShouldQueue
         $this->cleanup();
     }
 
-    // ─────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────
-
     private function setStatus(string $status, string $message, array $extra = []): void
     {
         Cache::put("tgc_job:{$this->jobId}", array_merge([
-            'status'    => $status,
-            'message'   => $message,
-            'job_id'    => $this->jobId,
-            'updated_at'=> now()->toISOString(),
+            'status'     => $status,
+            'message'    => $message,
+            'job_id'     => $this->jobId,
+            'updated_at' => now()->toISOString(),
         ], $extra), now()->addHours(2));
     }
 
     private function cleanup(): void
     {
         app(CardMergeService::class)->cleanup($this->tempDir);
+
+        // Also clean up box temp file
+        if (file_exists($this->boxAbsolutePath)) {
+            @unlink($this->boxAbsolutePath);
+        }
     }
 }

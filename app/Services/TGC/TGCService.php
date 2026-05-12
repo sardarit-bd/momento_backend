@@ -9,7 +9,9 @@ use App\DTOs\TGC\CreateCardFromFaceDTO;
 use App\DTOs\TGC\CreateDeckDTO;
 use App\DTOs\TGC\CreateFolderDTO;
 use App\DTOs\TGC\CreateGameDTO;
+use App\DTOs\TGC\CreateTuckBoxDTO;
 use App\DTOs\TGC\ProofCardDTO;
+use App\DTOs\TGC\UpdateTuckBoxDTO;
 use App\DTOs\TGC\UploadFolderFileDTO;
 use App\DTOs\TGC\UploadFileDTO;
 use App\Exceptions\TGC\TGCApiException;
@@ -101,6 +103,23 @@ class TGCService
         return $this->request('PUT', '/card/'.$dto->cardId, [
             'has_proofed_face' => $dto->hasProofedFace,
             'has_proofed_back' => $dto->hasProofedBack,
+        ]);
+    }
+
+    public function createTuckBox(CreateTuckBoxDTO $dto): array
+    {
+        return $this->request('POST', '/tuckbox', [
+            'name'     => $dto->name,
+            'game_id'  => $dto->gameId,
+            'identity' => $dto->identity,
+        ]);
+    }
+
+    public function updateTuckBox(UpdateTuckBoxDTO $dto): array
+    {
+        return $this->request('PUT', '/tuckbox/' . $dto->tuckboxId, [
+            'outside_id'          => $dto->outsideId,
+            'has_proofed_outside' => $dto->hasProofedOutside,
         ]);
     }
 

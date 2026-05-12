@@ -17,7 +17,6 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Http\UploadedFile;
 use Exception;
-use Log;
 
 class ProductController extends Controller
 {
@@ -321,10 +320,18 @@ class ProductController extends Controller
             if ($product->type !== 'simple') {
                 $data['customizations'] = [
                     // base_cards gets special mapping to include card_type
-                    'custom_sets'    => $product->base_cards->map(fn($item) => [
+                    'custom_sets' => $product->base_cards->map(fn($item) => [
                         'id'        => $item->id,
                         'image'     => asset('storage/' . $item->image),
                         'card_type' => $item->card_type,
+                        'name'      => $item->name, 
+                    ])->toArray(),
+
+                    'base_cards' => $product->base_cards->map(fn($item) => [
+                        'id'        => $item->id,
+                        'image'     => asset('storage/' . $item->image),
+                        'card_type' => $item->card_type,
+                        'name'      => $item->name,
                     ])->toArray(),
 
                     // all other layers use the generic mapper
@@ -788,12 +795,18 @@ class ProductController extends Controller
 
                 $key = $relation === 'base_cards' ? 'custom_sets' : $relation;
 
-                $data['customizations'][$key] = $product->{$relation}->map(fn($item) => [
+                $mapped = $product->{$relation}->map(fn($item) => [
                     'id'        => $item->id,
                     'name'      => $item->name,
                     'image'     => $item->image ? asset('storage/' . $item->image) : null,
                     'card_type' => $item->card_type ?? null,
                 ])->toArray();
+
+                $data['customizations'][$key] = $mapped;
+
+                if ($relation === 'base_cards') {
+                    $data['customizations']['base_cards'] = $mapped;
+                }
             }
         }
 

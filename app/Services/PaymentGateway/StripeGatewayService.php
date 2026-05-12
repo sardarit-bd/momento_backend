@@ -297,8 +297,7 @@ class StripeGatewayService
                     'zipcode'    => $request->zipcode,
                 ]
             );
-            ]);
-
+            
             foreach ($validatedItems as $item) {
                 $orderItem = $order->orderItems()->create([
                     'product_id' => $item['product_id'],

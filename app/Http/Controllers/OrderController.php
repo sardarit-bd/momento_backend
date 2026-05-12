@@ -145,6 +145,9 @@ class OrderController extends Controller
                             'image'     => $b64 ? "data:{$mime};base64,{$b64}" : null,
                         ];
                     }),
+                    'tuckbox_image' => $item->tuckbox_image_blob
+                        ? 'data:' . ($item->tuckbox_image_mime ?? 'image/png') . ';base64,' . base64_encode($item->tuckbox_image_blob)
+                        : null,
                 ];
             }),
 
@@ -198,6 +201,7 @@ class OrderController extends Controller
             'order_items.*.price'        => 'nullable|numeric|min:0',
             'order_items.*.FinalPDF'     => 'nullable|array',
             'order_items.*.FinalProduct' => 'nullable|array',
+            'order_items.*.tuckbox_image' => 'nullable|string',
             'payment_method'    => 'required|string|in:cash,cod,card,stripe,bkash',
             'payment_status'    => 'nullable|string|in:pending,completed,failed',
             'transaction_id'    => 'nullable|string|max:100',
@@ -242,6 +246,17 @@ class OrderController extends Controller
                     'quantity'   => $quantity,
                     'price'      => $price,
                 ]);
+
+                // Save tuckbox image if present
+                if (!empty($item['tuckbox_image'])) {
+                    [$mime, $blob] = $this->decodeBase64Image($item['tuckbox_image']);
+                    if ($blob !== null) {
+                        $orderItem->update([
+                            'tuckbox_image_blob' => $blob,
+                            'tuckbox_image_mime' => $mime ?? 'image/png',
+                        ]);
+                    }
+                }
 
                 $cardSaveResult = $this->storeOrderItemCards($orderItem, $item['FinalProduct'] ?? [], $item['customization_mode'] ?? null);
                 if ($cardSaveResult['count'] > 0) {

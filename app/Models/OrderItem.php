@@ -16,11 +16,13 @@ class OrderItem extends Model
         'customization_mode',
         'card_design_count',
         'customization_images',
+        'tuckbox_image_blob',   // ← add
+        'tuckbox_image_mime',   // ← add
     ];
 
     protected $casts = [
-        'price' => 'decimal:2',
-        'card_design_count' => 'integer',
+        'price'                => 'decimal:2',
+        'card_design_count'    => 'integer',
         'customization_images' => 'array',
     ];
 

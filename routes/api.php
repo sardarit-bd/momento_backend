@@ -137,3 +137,19 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/admin/orders/{id}', [OrderController::class, 'adminOrderDetails']);
 
 });
+
+
+Route::get('debug/shop/{slug}', function ($slug) {
+    $product = \App\Models\Product::where('slug', $slug)
+        ->with([
+            'skin_tones', 'hairs', 'noses', 'eyes', 'mouths',
+            'dresses', 'crowns', 'base_cards', 'beards',
+        ])
+        ->first();
+
+    return response()->json([
+        'product_id'        => $product?->id,
+        'base_cards'        => $product?->base_cards,
+        'base_cards_count'  => $product?->base_cards?->count(),
+    ]);
+});

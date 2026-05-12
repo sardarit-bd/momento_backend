@@ -14,12 +14,10 @@ class PublishDeckRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'deck_id'    => ['required', 'string'],
-            'folder_id'  => ['required', 'string'],
-            'cart_id'    => ['required', 'string'],
-            'sku_id'     => ['required', 'string'],
-            'cards'      => ['required', 'array', 'min:1', 'max:5'],
-            'cards.*'    => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:10240'],
+            'username' => ['required', 'string', 'max:100'],
+            'cards'    => ['required', 'array', 'min:1', 'max:5'],
+            'cards.*'  => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:10240'],
+            'box'      => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:10240'],
         ];
     }
 
@@ -28,6 +26,7 @@ class PublishDeckRequest extends FormRequest
         return [
             'cards.min' => 'At least 1 custom card is required.',
             'cards.max' => 'Maximum 5 custom cards allowed.',
+            'box.required' => 'A tuckbox image is required.',
         ];
     }
 }

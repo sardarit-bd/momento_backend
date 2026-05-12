@@ -15,7 +15,6 @@ use App\Http\Requests\TGC\CreateCardRequest;
 use App\Http\Requests\TGC\CreateCardFromFaceRequest;
 use App\Http\Requests\TGC\ProofCardRequest;
 use App\Http\Resources\TGC\CardResource;
-use Log;
 
 class CardController extends Controller
 {

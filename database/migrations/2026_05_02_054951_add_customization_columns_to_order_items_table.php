@@ -1,30 +1,21 @@
 <?php
-
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up()
+    public function up(): void
     {
         Schema::table('order_items', function (Blueprint $table) {
-            $table->string('customization_mode')->nullable()->after('price');
-            $table->integer('card_design_count')->default(0)->after('customization_mode');
-            $table->json('customization_images')->nullable()->after('card_design_count');
+            $table->longText('tuckbox_image_blob')->nullable()->after('customization_images');
+            $table->string('tuckbox_image_mime', 50)->nullable()->after('tuckbox_image_blob');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('order_items', function (Blueprint $table) {
-            //
+            $table->dropColumn(['tuckbox_image_blob', 'tuckbox_image_mime']);
         });
     }
 };

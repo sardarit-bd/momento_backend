@@ -13,8 +13,11 @@ class ShippingInformation extends Model
         'first_name',
         'last_name',
         'phone',
-        'address',
+        'address1',
+        'address2',
         'city',
+        'state',
+        'country',
         'zipcode',
     ];
 

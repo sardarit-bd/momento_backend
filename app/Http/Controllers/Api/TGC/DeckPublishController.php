@@ -88,15 +88,26 @@ class DeckPublishController extends Controller
 
         // Dispatch Job
         PublishDeckJob::dispatch(
-            jobId:           $jobId,
-            deckId:          $deckId,
-            folderId:        $folderId,
-            cartId:          $cartId,
-            skuId:           $skuId,
-            tuckboxId:       $tuckboxId,
-            cardStoragePaths: $merged['paths'],
-            tempDir:         $merged['tempDir'],
-            boxAbsolutePath: $boxAbsolutePath,
+            jobId:              $jobId,
+            deckId:             $deckId,
+            folderId:           $folderId,
+            cartId:             $cartId,
+            skuId:              $skuId,
+            tuckboxId:          $tuckboxId,
+            cardStoragePaths:   $merged['paths'],
+            tempDir:            $merged['tempDir'],
+            boxAbsolutePath:    $boxAbsolutePath,
+
+            // Shipping
+            shippingName:       $request->input('name'),
+            shippingAddress1:   $request->input('address1'),
+            shippingAddress2:   $request->input('address2'),
+            shippingCity:       $request->input('city'),
+            shippingState:      $request->input('state'),
+            shippingCountry:    $request->input('country'),
+            shippingPostalCode: $request->input('postal_code'),
+            shippingPhone:      $request->input('phone_number'),
+            shippingCompany:    $request->input('company'),
         );
 
         return response()->json([

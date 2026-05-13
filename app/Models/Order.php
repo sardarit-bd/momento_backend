@@ -10,7 +10,10 @@ class Order extends Model
     use Prunable;
 
     protected $fillable = [
-        'user_id','name', 'email', 'phone', 'address', 'city', 'zipcode', 'total', 'status', 'is_paid', 'is_customized', 'customized_file'
+        'user_id', 'name', 'email', 'phone',
+        'address1', 'address2',
+        'city', 'state', 'country', 'zipcode',
+        'total', 'status', 'is_paid', 'is_customized', 'customized_file',
     ];
 
     protected $casts = [

@@ -21,8 +21,11 @@ class StripeGatewayService
             'last_name'  => 'required|string|max:255',
             'email'      => 'required|email',
             'phone'      => 'required|string|max:50',
-            'address'    => 'required|string|max:500',
+            'address1'   => 'required|string|max:500',
+            'address2'   => 'nullable|string|max:500',
             'city'       => 'required|string|max:100',
+            'state'      => 'nullable|string|max:100',
+            'country'    => 'nullable|string|max:100',
             'zipcode'    => 'required|string|max:20',
             'gateway'    => 'required|string|in:stripe,cod,cash_on_delivery',
             'items'      => 'required|array|min:1',
@@ -114,29 +117,34 @@ class StripeGatewayService
         try {
 
             $user = auth('api')->user();
-
             $order = \App\Models\Order::create([
-                'user_id' => $user?->id ?? ($request->userID ?? null),
-                'name'    => $request->first_name . ' ' . $request->last_name,
-                'email'   => $user?->email ?? $request->email,
-                'phone'   => $request->phone,
-                'address' => $request->address,
-                'city'    => $request->city,
-                'zipcode' => $request->zipcode,
-                'total'   => $trustedTotal,
-                'status'  => 'pending',
-                'is_paid' => false,
+                'user_id'  => $user?->id ?? ($request->userID ?? null),
+                'name'     => $request->first_name . ' ' . $request->last_name,
+                'email'    => $user?->email ?? $request->email,
+                'phone'    => $request->phone,
+                'address1' => $request->address1,
+                'address2' => $request->address2,
+                'city'     => $request->city,
+                'state'    => $request->state,
+                'country'  => $request->country,
+                'zipcode'  => $request->zipcode,
+                'total'    => $trustedTotal,
+                'status'   => 'pending',
+                'is_paid'  => false,
             ]);
 
             ShippingInformation::updateOrCreate(
                 ['order_id' => $order->id],
                 [
                     'first_name' => $request->first_name,
-                    'last_name' => $request->last_name,
-                    'phone' => $request->phone,
-                    'address' => $request->address,
-                    'city' => $request->city,
-                    'zipcode' => $request->zipcode,
+                    'last_name'  => $request->last_name,
+                    'phone'      => $request->phone,
+                    'address1'   => $request->address1,
+                    'address2'   => $request->address2,
+                    'city'       => $request->city,
+                    'state'      => $request->state,
+                    'country'    => $request->country,
+                    'zipcode'    => $request->zipcode,
                 ]
             );
 
@@ -218,14 +226,17 @@ class StripeGatewayService
                 'cancel_url'  => rtrim(config('app.frontend_url'), '/') . '/payment/cancel?session_id={CHECKOUT_SESSION_ID}',
 
                 'currency'    => 'usd',
-                'metadata'    => [
-                    'order_id' => $order->id,
+                'metadata' => [
+                    'order_id'   => $order->id,
                     'first_name' => $request->first_name,
-                    'last_name' => $request->last_name,
-                    'phone' => $request->phone,
-                    'address' => $request->address,
-                    'city' => $request->city,
-                    'zipcode' => $request->zipcode,
+                    'last_name'  => $request->last_name,
+                    'phone'      => $request->phone,
+                    'address1'   => $request->address1,
+                    'address2'   => $request->address2,
+                    'city'       => $request->city,
+                    'state'      => $request->state,
+                    'country'    => $request->country,
+                    'zipcode'    => $request->zipcode,
                 ],
                 'expires_at' => now()->addHour(1)->timestamp,
                 'after_expiration' => [
@@ -262,38 +273,32 @@ class StripeGatewayService
             $user = auth('api')->user();
 
             $order = \App\Models\Order::create([
-                'user_id' => $user?->id ?? ($request->userID ?? null),
-                'name'    => $request->first_name . ' ' . $request->last_name,
-                'email'   => $user?->email ?? $request->email, // real email from auth user
-                'phone'   => $request->phone,
-                'address' => $request->address,
-                'city'    => $request->city,
-                'zipcode' => $request->zipcode,
-                'total'   => $trustedTotal,
-                'status'  => 'pending',
-                'is_paid' => false,
+                'user_id'  => $user?->id ?? ($request->userID ?? null),
+                'name'     => $request->first_name . ' ' . $request->last_name,
+                'email'    => $user?->email ?? $request->email,
+                'phone'    => $request->phone,
+                'address1' => $request->address1,
+                'address2' => $request->address2,
+                'city'     => $request->city,
+                'state'    => $request->state,
+                'country'  => $request->country,
+                'zipcode'  => $request->zipcode,
+                'total'    => $trustedTotal,
+                'status'   => 'pending',
+                'is_paid'  => false,
             ]);
 
             ShippingInformation::updateOrCreate(
                 ['order_id' => $order->id],
                 [
                     'first_name' => $request->first_name,
-                    'last_name' => $request->last_name,
-                    'phone' => $request->phone,
-                    'address' => $request->address,
-                    'city' => $request->city,
-                    'zipcode' => $request->zipcode,
-                ]
-            );
-
-            $shipping = ShippingInformation::updateOrCreate(
-                ['order_id' => $order->id],
-                [
-                    'first_name' => $request->first_name,
                     'last_name'  => $request->last_name,
                     'phone'      => $request->phone,
-                    'address'    => $request->address,
+                    'address1'   => $request->address1,
+                    'address2'   => $request->address2,
                     'city'       => $request->city,
+                    'state'      => $request->state,
+                    'country'    => $request->country,
                     'zipcode'    => $request->zipcode,
                 ]
             );

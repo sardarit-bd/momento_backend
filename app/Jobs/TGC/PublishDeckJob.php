@@ -3,6 +3,7 @@
 namespace App\Jobs\TGC;
 
 use App\DTOs\TGC\AddToCartDTO;
+use App\DTOs\TGC\CreateAddressDTO;
 use App\DTOs\TGC\CreateCardFromFaceDTO;
 use App\DTOs\TGC\UpdateTuckBoxDTO;
 use App\DTOs\TGC\UploadFolderFileDTO;
@@ -25,15 +26,26 @@ class PublishDeckJob implements ShouldQueue
     public int $timeout = 600;
 
     public function __construct(
-        private readonly string $jobId,
-        private readonly string $deckId,
-        private readonly string $folderId,
-        private readonly string $cartId,
-        private readonly string $skuId,
-        private readonly string $tuckboxId,
-        private readonly array  $cardStoragePaths,
-        private readonly string $tempDir,
-        private readonly string $boxAbsolutePath,
+        private readonly string  $jobId,
+        private readonly string  $deckId,
+        private readonly string  $folderId,
+        private readonly string  $cartId,
+        private readonly string  $skuId,
+        private readonly string  $tuckboxId,
+        private readonly array   $cardStoragePaths,
+        private readonly string  $tempDir,
+        private readonly string  $boxAbsolutePath,
+
+        // Shipping
+        private readonly string  $shippingName,
+        private readonly string  $shippingAddress1,
+        private readonly ?string $shippingAddress2,
+        private readonly string  $shippingCity,
+        private readonly string  $shippingState,
+        private readonly string  $shippingCountry,
+        private readonly string  $shippingPostalCode,
+        private readonly string  $shippingPhone,
+        private readonly ?string $shippingCompany,
     ) {}
 
     public function handle(TGCService $tgc): void
@@ -105,9 +117,9 @@ class PublishDeckJob implements ShouldQueue
                 ?? throw new \RuntimeException('No file ID for tuckbox image');
 
             $tgc->updateTuckBox(new UpdateTuckBoxDTO(
-                tuckboxId:          $this->tuckboxId,
-                outsideId:          $boxFileId,
-                hasProofedOutside:  false,
+                tuckboxId:         $this->tuckboxId,
+                outsideId:         $boxFileId,
+                hasProofedOutside: false,
             ));
 
             $this->setStatus('running', 'Tuckbox image attached.');
@@ -118,7 +130,50 @@ class PublishDeckJob implements ShouldQueue
             return;
         }
 
-        // ── Step 3: Add to cart ───────────────────────────────────────────
+        // ── Step 3: Create shipping address ───────────────────────────────
+        try {
+            $this->setStatus('running', 'Creating shipping address...');
+
+            $addressResponse = $tgc->createAddress(new CreateAddressDTO(
+                name:        $this->shippingName,
+                address1:    $this->shippingAddress1,
+                city:        $this->shippingCity,
+                state:       $this->shippingState,
+                postalCode:  $this->shippingPostalCode,
+                country:     $this->shippingCountry,
+                phoneNumber: $this->shippingPhone,
+                company:     $this->shippingCompany,
+                address2:    $this->shippingAddress2,
+            ));
+
+            $addressId = data_get($addressResponse, 'id')
+                ?? throw new \RuntimeException('No address ID returned from TGC');
+
+            $this->setStatus('running', 'Shipping address created.');
+
+        } catch (Throwable $e) {
+            $this->setStatus('failed', 'Address creation failed: ' . $e->getMessage());
+            $this->cleanup();
+            return;
+        }
+
+        // ── Step 4: Attach shipping address to cart ───────────────────────
+        try {
+            $this->setStatus('running', 'Attaching shipping address to cart...');
+
+            $tgc->updateCart($this->cartId, [
+                'shipping_address_id' => $addressId,
+            ]);
+
+            $this->setStatus('running', 'Shipping address attached to cart.');
+
+        } catch (Throwable $e) {
+            $this->setStatus('failed', 'Cart address update failed: ' . $e->getMessage());
+            $this->cleanup();
+            return;
+        }
+
+        // ── Step 5: Add SKU to cart ───────────────────────────────────────
         try {
             $this->setStatus('running', 'Adding deck to cart...');
 
@@ -161,7 +216,6 @@ class PublishDeckJob implements ShouldQueue
     {
         app(CardMergeService::class)->cleanup($this->tempDir);
 
-        // Also clean up box temp file
         if (file_exists($this->boxAbsolutePath)) {
             @unlink($this->boxAbsolutePath);
         }

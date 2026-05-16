@@ -109,9 +109,11 @@ class TGCService
     public function createTuckBox(CreateTuckBoxDTO $dto): array
     {
         return $this->request('POST', '/tuckbox', [
-            'name'     => $dto->name,
-            'game_id'  => $dto->gameId,
-            'identity' => $dto->identity,
+            'name'                => $dto->name,
+            'game_id'             => $dto->gameId,
+            'identity'            => $dto->identity,
+            'outside_id'          => $dto->outsideId,
+            'has_proofed_outside' => $dto->hasProofedOutside,
         ]);
     }
 

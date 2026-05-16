@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\PaymentGateway;
 
+use App\Jobs\TGC\PublishDeckJob;
 use App\Models\Order;
 use App\Models\ShippingInformation;
 use Illuminate\Http\Request;
@@ -94,7 +95,7 @@ class WebhookController extends Controller
                 ]);
             }
 
-            // 2. Update order as paid and completed ✅
+            // 2. Update order as paid and completed
             $order->update([
                 'is_paid'           => true,
                 'status'            => 'completed',
@@ -108,13 +109,20 @@ class WebhookController extends Controller
                     'first_name' => (string) ($session->metadata->first_name ?? ''),
                     'last_name'  => (string) ($session->metadata->last_name ?? ''),
                     'phone'      => (string) ($session->metadata->phone ?? ''),
-                    'address'    => (string) ($session->metadata->address ?? ''),
+                    'address1'   => (string) ($session->metadata->address1 ?? ''),
+                    'address2'   => (string) ($session->metadata->address2 ?? ''),
                     'city'       => (string) ($session->metadata->city ?? ''),
+                    'state'      => (string) ($session->metadata->state ?? ''),
+                    'country'    => (string) ($session->metadata->country ?? ''),
                     'zipcode'    => (string) ($session->metadata->zipcode ?? ''),
                 ]
             );
 
             DB::commit();
+
+            if ($order->is_customized) {
+                PublishDeckJob::dispatch($order->id);
+            }
 
 
             return response()->json([

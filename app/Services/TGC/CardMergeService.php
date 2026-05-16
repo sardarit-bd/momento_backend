@@ -5,11 +5,12 @@ namespace App\Services\TGC;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Log;
 
 class CardMergeService
 {
-    private const BASE_CARDS_PATH = 'private/cards';
-    private const TEMP_BASE_PATH  = 'private/temp';
+    private const BASE_CARDS_PATH = 'cards';
+    private const TEMP_BASE_PATH  = 'temp';
 
     // All 54 base card filenames in order
     private const BASE_CARD_NAMES = [
@@ -132,6 +133,47 @@ class CardMergeService
             'paths'   => $orderedPaths,   // 54 absolute paths in order
             'tempDir' => $tempDir,        // for cleanup after job
         ];
+    }
+
+    public function mergeFromPaths(array $customFilePaths, string $jobId): array
+    {
+        try {
+            $cardMap = $this->buildBaseCardMap();
+            $tempDir = self::TEMP_BASE_PATH . '/' . $jobId;
+
+            foreach ($customFilePaths as $absolutePath) {
+                $originalName   = basename($absolutePath);
+                $targetFilename = $this->resolveTargetFilename($originalName);
+
+                Log::info('mergeFromPaths processing', [
+                    'file'   => $originalName,
+                    'target' => $targetFilename,
+                ]);
+
+                if ($targetFilename === null) continue;
+
+                $contents = file_get_contents($absolutePath);
+                Storage::disk('local')->put($tempDir . '/' . $targetFilename, $contents);
+                $cardMap[$targetFilename] = Storage::disk('local')->path($tempDir . '/' . $targetFilename);
+            }
+
+            $orderedPaths = array_map(
+                fn(string $name) => $cardMap[$name],
+                self::BASE_CARD_NAMES
+            );
+
+            return [
+                'paths'   => $orderedPaths,
+                'tempDir' => $tempDir,
+            ];
+
+        } catch (\Throwable $e) {
+            Log::error('mergeFromPaths failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 
     /**

@@ -27,6 +27,11 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function shippingInformation()
+    {
+        return $this->hasOne(ShippingInformation::class);
+    }
+
     public function customizedCards()
     {
         return $this->hasManyThrough(OrderItemCard::class, OrderItem::class, 'order_id', 'order_item_id', 'id', 'id');

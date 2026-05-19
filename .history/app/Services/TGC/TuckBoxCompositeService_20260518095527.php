@@ -3,7 +3,6 @@
 namespace App\Services\TGC;
 
 use Illuminate\Support\Facades\Storage;
-use Log;
 
 class TuckBoxCompositeService
 {
@@ -13,8 +12,6 @@ class TuckBoxCompositeService
 
     public function composite(array $characterBlobs): string
     {
-        Log::info('TuckBox file loaded from', ['path' => __FILE__]);
-
         $W = self::W;
         $H = self::H;
 
@@ -51,7 +48,7 @@ class TuckBoxCompositeService
         $total = count($imgs);
 
         // CSS: top:9.5%, left:10%, width:36%, height:11%, rotate(180deg)
-        $zX = (int)($W * 0.08);
+        $zX = (int)($W * 0.10);
         $zY = (int)($H * 0.095);
         $zW = (int)($W * 0.36);
         $zH = (int)($H * 0.11);
@@ -99,71 +96,55 @@ class TuckBoxCompositeService
     }
 
     private function drawZone2($canvas, array $imgs, int $W, int $H, int $total): void
-{
-    $zX = (int)($W * 0.10);
-    $zY = (int)($H * 0.43);
-    $zW = (int)($W * 0.36);
-    $zH = (int)($H * 0.42);
+    {
+        // CSS: top:43%, left:10%, width:36%, height:42%
+        $zX = (int)($W * 0.10);
+        $zY = (int)($H * 0.43);
+        $zW = (int)($W * 0.36);
+        $zH = (int)($H * 0.42);
 
-    $layout = $this->getZone2Layout($total);
-    usort($layout, fn($a, $b) => ($a['z'] ?? 1) <=> ($b['z'] ?? 1));
+        $layout = $this->getZone2Layout($total);
+        usort($layout, fn($a, $b) => ($a['z'] ?? 1) <=> ($b['z'] ?? 1));
 
-    foreach ($layout as $slot) {
-        $slotW = (int)($zW * $slot['size']);
-        $slotH = (int)($slotW * 4 / 3);
+        foreach ($layout as $slot) {
+            $slotW = (int)($zW * $slot['size']);
+            $slotH = (int)($slotW * 4 / 3);
 
-        $cx = (int)($zX + $zW / 2 + ($slot['x'] / 100) * $zW);
+            $cx = (int)($zX + $zW / 2 + ($slot['x'] / 100) * $zW);
+            $cy = (int)($zY + $zH + ($slot['y'] / 100) * $zH);
 
-        $img  = $imgs[$slot['i']];
-        $srcW = imagesx($img);
-        $srcH = imagesy($img);
+            $img  = $imgs[$slot['i']];
+            $srcW = imagesx($img);
+            $srcH = imagesy($img);
 
-        $scaledW = (int)($slotW * $slot['scale']);
-        $scaledH = (int)($slotH * $slot['scale']);
-        $scaledX = (int)($cx - $scaledW / 2);
-
-        // ✅ If slot has feet_y, pin feet to that canvas pixel directly
-        // Otherwise fall back to original cy formula
-        if (isset($slot['feet_y'])) {
-            $feetY   = (int)($H * $slot['feet_y'] / 100);
-            $scaledY = $feetY - $scaledH;
-        } else {
-            $cy      = (int)($zY + $zH + ($slot['y'] / 100) * $zH);
+            $scaledW = (int)($slotW * $slot['scale']);
+            $scaledH = (int)($slotH * $slot['scale']);
+            $scaledX = (int)($cx - $scaledW / 2);
             $scaledY = (int)($cy - $scaledH);
-        }
 
-        $scaled = imagecreatetruecolor($scaledW, $scaledH);
-        imagealphablending($scaled, false);
-        imagesavealpha($scaled, true);
-        $trans = imagecolorallocatealpha($scaled, 0, 0, 0, 127);
-        imagefill($scaled, 0, 0, $trans);
-        imagealphablending($scaled, true);
-        imagecopyresampled($scaled, $img, 0, 0, 0, 0, $scaledW, $scaledH, $srcW, $srcH);
+            $scaled = imagecreatetruecolor($scaledW, $scaledH);
+            imagealphablending($scaled, false);
+            imagesavealpha($scaled, true);
+            $trans = imagecolorallocatealpha($scaled, 0, 0, 0, 127);
+            imagefill($scaled, 0, 0, $trans);
+            imagealphablending($scaled, true);
+            imagecopyresampled($scaled, $img, 0, 0, 0, 0, $scaledW, $scaledH, $srcW, $srcH);
 
-        if (!empty($slot['clip'])) {
-            $parts    = explode(' ', $slot['clip']);
-            $clipLeft = (int)(floatval($parts[3]) / 100 * $scaledW);
-            $clipTop  = (int)(floatval($parts[0]) / 100 * $scaledH);
-            $clipped  = $this->applyInsetClip($scaled, $scaledW, $scaledH, $slot['clip']);
+            if (!empty($slot['clip'])) {
+                $parts    = explode(' ', $slot['clip']);
+                $clipLeft = (int)(floatval($parts[3]) / 100 * $scaledW);
+                $clipTop  = (int)(floatval($parts[0]) / 100 * $scaledH);
+                $clipped  = $this->applyInsetClip($scaled, $scaledW, $scaledH, $slot['clip']);
+                imagedestroy($scaled);
+                $scaled   = $clipped;
+                $scaledX += $clipLeft;
+                $scaledY += $clipTop;
+            }
+
+            imagecopy($canvas, $scaled, $scaledX, $scaledY, 0, 0, imagesx($scaled), imagesy($scaled));
             imagedestroy($scaled);
-            $scaled   = $clipped;
-            $scaledX += $clipLeft;
-            $scaledY += $clipTop;
         }
-
-        Log::info('Zone2 slot', [
-            'i'       => $slot['i'],
-            'z'       => $slot['z'] ?? 1,
-            'scaledY' => $scaledY,
-            'finalH'  => imagesy($scaled),
-            'bottom'  => $scaledY + imagesy($scaled),
-            'H'       => $H,
-        ]);
-
-        imagecopy($canvas, $scaled, $scaledX, $scaledY, 0, 0, imagesx($scaled), imagesy($scaled));
-        imagedestroy($scaled);
     }
-}
 
     private function drawZone3($canvas, array $imgs, int $W, int $H, int $total): void
     {
@@ -248,30 +229,30 @@ class TuckBoxCompositeService
     private function getZone2Layout(int $total): array
     {
         if ($total === 1) return [
-            ['i' => 0, 'x' => 0, 'y' => 85, 'scale' => 1, 'size' => 0.55, 'z' => 3],
+            ['i' => 0, 'x' => 0,   'y' => 0,   'scale' => 1,    'size' => 0.55, 'z' => 3],
         ];
         if ($total === 2) return [
-            ['i' => 1, 'x' => -20, 'y' => 72, 'scale' => 0.72, 'size' => 0.38, 'z' => 1],
-            ['i' => 0, 'x' => 0,   'y' => 85, 'scale' => 1,    'size' => 0.55, 'z' => 3],
+            ['i' => 1, 'x' => -20, 'y' => -18, 'scale' => 0.72, 'size' => 0.38, 'z' => 1],
+            ['i' => 0, 'x' => 0,   'y' => 0,   'scale' => 1,    'size' => 0.55, 'z' => 3],
         ];
         if ($total === 3) return [
-            ['i' => 1, 'x' => -22, 'y' => 72, 'scale' => 0.72, 'size' => 0.38, 'z' => 1],
-            ['i' => 2, 'x' =>  22, 'y' => 72, 'scale' => 0.72, 'size' => 0.38, 'z' => 1],
-            ['i' => 0, 'x' => 0,   'y' => 85, 'scale' => 1,    'size' => 0.55, 'z' => 3],
+            ['i' => 1, 'x' => -22, 'y' => -18, 'scale' => 0.72, 'size' => 0.38, 'z' => 1],
+            ['i' => 2, 'x' =>  22, 'y' => -18, 'scale' => 0.72, 'size' => 0.38, 'z' => 1],
+            ['i' => 0, 'x' => 0,   'y' => 0,   'scale' => 1,    'size' => 0.55, 'z' => 3],
         ];
         if ($total === 4) return [
-            ['i' => 0, 'x' => -22, 'y' => 72, 'scale' => 0.65, 'size' => 0.95, 'z' => 1, 'clip' => '0% 25% 10% 23%'],
-            ['i' => 3, 'x' =>  22, 'y' => 72, 'scale' => 0.65, 'size' => 0.95, 'z' => 1, 'clip' => '0% 23% 10% 25%'],
-            ['i' => 1, 'x' => -26, 'y' => 82, 'scale' => 0.78, 'size' => 0.80, 'z' => 2, 'clip' => '0% 27% 55% 28%'],
-            ['i' => 2, 'x' =>  26, 'y' => 82, 'scale' => 0.78, 'size' => 0.80, 'z' => 2, 'clip' => '0% 27% 55% 25%'],
-            ['i' => 0, 'x' => 0,   'y' => 95, 'scale' => 1,    'size' => 0.99, 'z' => 3, 'clip' => '0% 25% 49.3% 25%'],
+            ['i' => 0, 'x' => -22, 'y' => -15, 'scale' => 0.65, 'size' => 0.95, 'z' => 1, 'clip' => '0% 25% 10% 23%'],
+            ['i' => 3, 'x' =>  22, 'y' => -15, 'scale' => 0.65, 'size' => 0.95, 'z' => 1, 'clip' => '0% 23% 10% 25%'],
+            ['i' => 1, 'x' => -26, 'y' =>  10, 'scale' => 0.78, 'size' => 0.80, 'z' => 2, 'clip' => '0% 27% 55% 28%'],
+            ['i' => 2, 'x' =>  26, 'y' =>  10, 'scale' => 0.78, 'size' => 0.80, 'z' => 2, 'clip' => '0% 27% 55% 25%'],
+            ['i' => 0, 'x' => 0,   'y' =>  32, 'scale' => 1,    'size' => 0.99, 'z' => 3, 'clip' => '0% 25% 49.3% 25%'],
         ];
         return [
             ['i' => 3, 'x' => -21, 'y' => -15, 'scale' => 0.65, 'size' => 0.95, 'z' => 1],
             ['i' => 4, 'x' =>  21, 'y' => -15, 'scale' => 0.65, 'size' => 0.95, 'z' => 1],
             ['i' => 1, 'x' => -21, 'y' =>  10, 'scale' => 0.78, 'size' => 0.80, 'z' => 2, 'clip' => '0% 27% 55% 28%'],
             ['i' => 2, 'x' =>  21, 'y' =>  10, 'scale' => 0.78, 'size' => 0.80, 'z' => 2, 'clip' => '0% 27% 55% 25%'],
-            ['i' => 0, 'x' => 0, 'y' => 30, 'scale' => 0.75, 'size' => 0.99, 'z' => 3, 'clip' => '0% 25% 0% 25%'],
+            ['i' => 0, 'x' => 0,   'y' =>  32, 'scale' => 1,    'size' => 0.09, 'z' => 3, 'clip' => '0% 25% 10% 25%'],
         ];
     }
 

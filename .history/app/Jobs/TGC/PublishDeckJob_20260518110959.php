@@ -294,92 +294,66 @@ class PublishDeckJob implements ShouldQueue
             'sku_id'         => $skuId ?? 'NULL',
         ]);
 
-        // ── Step 7: Create Cart ───────────────────────────────────────────
+        // ── Step 7: Create Cart
         try {
             $this->setStatus($jobId, 'running', 'Creating cart...');
+
             $cartResponse = $tgc->createCart();
             $cartId = data_get($cartResponse, 'result.id')
                 ?? throw new \RuntimeException('No cart ID returned from TGC');
+
             $this->setStatus($jobId, 'running', 'Cart created.');
             Log::info('TGC Cart created', ['cart_id' => $cartId]);
+
         } catch (Throwable $e) {
-            Log::error('Cart creation failed', ['error' => $e->getMessage()]);
             $this->setStatus($jobId, 'failed', 'Cart creation failed: ' . $e->getMessage());
             $this->cleanup($jobId);
             return;
         }
 
         // ── Step 8: Create shipping address ──────────────────────────────
-        Log::info('Step 8: Creating shipping address', ['order_id' => $this->orderId]);
         try {
+            $this->setStatus($jobId, 'running', 'Creating shipping address...');
+
             $shipping = $order->shippingInformation;
-
-            Log::info('Shipping info loaded', [
-                'exists'      => (bool) $shipping,
-                'country'     => $shipping?->country,
-                'address1'    => $shipping?->address1,
-                'postal_code' => $shipping?->zipcode,
-            ]);
-
             if (!$shipping) {
                 throw new \RuntimeException('Shipping information not found for order');
             }
 
-            $addressResponse = $tgc->createAddress(CreateAddressDTO::make(
+            $addressResponse = $tgc->createAddress(new CreateAddressDTO(
                 name:        $shipping->first_name . ' ' . $shipping->last_name,
                 address1:    $shipping->address1,
                 city:        $shipping->city,
-                state:       $shipping->state    ?? 'N/A',
+                state:       $shipping->state ?? 'N/A',
                 postalCode:  $shipping->zipcode,
-                country:     $shipping->country  ?? 'US',
+                country:     $shipping->country ?? 'US',
                 phoneNumber: $shipping->phone,
-                company:     $shipping->company  ?? null,
+                company:     $shipping->company ?? null,
                 address2:    $shipping->address2 ?? null,
             ));
-
-            Log::info('Address API response', ['response' => $addressResponse]);
 
             $addressId = data_get($addressResponse, 'result.id')
                 ?? throw new \RuntimeException('No address ID returned from TGC');
 
-            Log::info('TGC Address created', ['address_id' => $addressId]);
             $this->setStatus($jobId, 'running', 'Shipping address created.');
 
         } catch (Throwable $e) {
-            Log::error('Address creation failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
             $this->setStatus($jobId, 'failed', 'Address creation failed: ' . $e->getMessage());
             $this->cleanup($jobId);
             return;
         }
 
-        // ── Step 9: Attach address to cart ───────────────────────────────
-        Log::info('Step 9: Attaching address to cart', [
-            'cart_id'    => $cartId,
-            'address_id' => $addressId,
-        ]);
+        // ── Step 9: Attach address to cart ────────────────────────────────
         try {
-            $updateResponse = $tgc->updateCart($cartId, ['shipping_address_id' => $addressId]);
-            Log::info('Cart updated with address', ['response' => $updateResponse]);
+            $tgc->updateCart($cartId, ['shipping_address_id' => $addressId]);
             $this->setStatus($jobId, 'running', 'Shipping address attached to cart.');
         } catch (Throwable $e) {
-            Log::error('Cart address update failed', [
-                'error'      => $e->getMessage(),
-                'cart_id'    => $cartId,
-                'address_id' => $addressId,
-            ]);
             $this->setStatus($jobId, 'failed', 'Cart address update failed: ' . $e->getMessage());
             $this->cleanup($jobId);
             return;
         }
 
         // ── Step 10: Add SKU to cart ──────────────────────────────────────
-        Log::info('Step 10: Adding SKU to cart', [
-            'cart_id' => $cartId,
-            'sku_id'  => $skuId,
-        ]);
         try {
             $tgc->addSkuToCart(new AddToCartDTO(
                 cartId:   $cartId,
@@ -387,7 +361,6 @@ class PublishDeckJob implements ShouldQueue
                 quantity: 1,
             ));
 
-            Log::info('SKU added to cart successfully', ['cart_id' => $cartId, 'sku_id' => $skuId]);
             $this->setStatus($jobId, 'completed', 'Deck published and added to cart.', [
                 'uploaded' => $total,
                 'total'    => $total,
@@ -395,12 +368,6 @@ class PublishDeckJob implements ShouldQueue
             ]);
 
         } catch (Throwable $e) {
-            Log::error('Add SKU to cart failed', [
-                'error'   => $e->getMessage(),
-                'cart_id' => $cartId,
-                'sku_id'  => $skuId,
-                'trace'   => $e->getTraceAsString(),
-            ]);
             $this->setStatus($jobId, 'failed', 'Cart SKU step failed: ' . $e->getMessage());
         }
 

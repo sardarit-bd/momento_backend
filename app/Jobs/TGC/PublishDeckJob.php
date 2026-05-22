@@ -23,8 +23,9 @@ class PublishDeckJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries   = 1;
+    public int $tries   = 3;
     public int $timeout = 600;
+    public int $backoff = 60;
 
     public function __construct(
         private readonly int $orderId,
@@ -95,7 +96,7 @@ class PublishDeckJob implements ShouldQueue
                 name:           $username . '-deck',
                 identity:       'PokerDeck',
                 hasProofedBack: true,
-                backId:         '65E06A22-4F4A-11F1-99A9-0EB33FE31C9A',
+                backId:         'A5466D20-54D0-11F1-86E8-959B4373131A',
             ));
             $deckId = data_get($deck, 'result.id')
                 ?? throw new \RuntimeException('TGC deck creation failed: no id');
@@ -375,7 +376,7 @@ class PublishDeckJob implements ShouldQueue
             return;
         }
 
-        // ── Step 10: Add SKU to cart ──────────────────────────────────────
+        // ── Step 10: Add SKU to cart ──────────────────────────────────────────
         Log::info('Step 10: Adding SKU to cart', [
             'cart_id' => $cartId,
             'sku_id'  => $skuId,
@@ -388,11 +389,7 @@ class PublishDeckJob implements ShouldQueue
             ));
 
             Log::info('SKU added to cart successfully', ['cart_id' => $cartId, 'sku_id' => $skuId]);
-            $this->setStatus($jobId, 'completed', 'Deck published and added to cart.', [
-                'uploaded' => $total,
-                'total'    => $total,
-                'cart_id'  => $cartId,
-            ]);
+            $this->setStatus($jobId, 'running', 'SKU added to cart.');
 
         } catch (Throwable $e) {
             Log::error('Add SKU to cart failed', [
@@ -402,10 +399,127 @@ class PublishDeckJob implements ShouldQueue
                 'trace'   => $e->getTraceAsString(),
             ]);
             $this->setStatus($jobId, 'failed', 'Cart SKU step failed: ' . $e->getMessage());
+            $this->cleanup($jobId);
+            return; // ← only return on failure
+        }
+
+        // ── Step 11: Attach user/session to cart ─────────────────────
+        Log::info('Step 11: Attaching session to cart', ['cart_id' => $cartId]);
+        try {
+            $attachResponse = $tgc->attachUserToCart($cartId);
+
+            Log::info('Session attached to cart', ['response' => $attachResponse]);
+            $this->setStatus($jobId, 'running', 'Session attached to cart.');
+
+        } catch (Throwable $e) {
+            Log::error('Attach user to cart failed', [
+                'error'   => $e->getMessage(),
+                'cart_id' => $cartId,
+                'trace'   => $e->getTraceAsString(),
+            ]);
+            $this->setStatus($jobId, 'failed', 'Attach user to cart failed: ' . $e->getMessage());
+            $this->cleanup($jobId);
+            return;
+        }
+
+        // ── Step 11.5: Validate shop credit covers grand total ────────
+        Log::info('Step 11.5: Validating shop credit', ['cart_id' => $cartId]);
+        try {
+            $cartDetails   = $tgc->getCart($cartId);
+            $grandTotal    = (float) data_get($cartDetails, 'result.grand_total', 0);
+            $shopCredit    = (float) data_get($cartDetails, 'result.applicable_shop_credit', 0);
+
+            Log::info('Cart totals', [
+                'grand_total'  => $grandTotal,
+                'shop_credit'  => $shopCredit,
+                'cart_id'      => $cartId,
+            ]);
+
+            if ($shopCredit < $grandTotal) {
+                throw new \RuntimeException(
+                    "Insufficient shop credit: have \${$shopCredit}, need \${$grandTotal}"
+                );
+            }
+
+            $this->setStatus($jobId, 'running', 'Shop credit validated.');
+
+        } catch (Throwable $e) {
+            Log::error('Shop credit validation failed', [
+                'error'   => $e->getMessage(),
+                'cart_id' => $cartId,
+            ]);
+            $this->setStatus($jobId, 'failed', 'Insufficient shop credit: ' . $e->getMessage());
+            $this->cleanup($jobId);
+            return;
+        }
+
+        // ── Step 12: Pay with shop credit ────────────────────────────
+        Log::info('Step 12: Paying with shop credit', ['cart_id' => $cartId]);
+        try {
+            $paymentResponse = $tgc->payWithShopCredit($cartId);
+
+            Log::info('Shop credit payment response', ['response' => $paymentResponse]);
+
+            $receiptId = data_get($paymentResponse, 'result.id')
+                ?? throw new \RuntimeException('No receipt ID returned from shop credit payment');
+
+            Log::info('TGC Payment successful', ['receipt_id' => $receiptId]);
+
+        } catch (Throwable $e) {
+            Log::error('Shop credit payment failed', [
+                'error'   => $e->getMessage(),
+                'cart_id' => $cartId,
+                'trace'   => $e->getTraceAsString(),
+            ]);
+            $this->setStatus($jobId, 'failed', 'Payment failed: ' . $e->getMessage());
+            $this->cleanup($jobId);
+            return;
+        }
+
+        // ── Step 13: Fetch & store receipt ───────────────────────────
+        Log::info('Step 13: Fetching receipt', ['receipt_id' => $receiptId]);
+        try {
+            $receipt = $tgc->fetchReceipt($receiptId);
+
+            Log::info('TGC Receipt fetched', ['receipt' => $receipt]);
+
+            // Optionally store receipt ID on your order model
+            \App\Models\Order::where('id', $this->orderId)->update([
+                'tgc_receipt_id' => $receiptId,
+            ]);
+
+            $this->setStatus($jobId, 'completed', 'Order placed and paid successfully.', [
+                'receipt_id' => $receiptId,
+                'cart_id'    => $cartId,
+                'uploaded'   => $total,
+                'total'      => $total,
+            ]);
+
+            Log::info('PublishDeckJob completed successfully', [
+                'order_id'   => $this->orderId,
+                'receipt_id' => $receiptId,
+                'cart_id'    => $cartId,
+            ]);
+
+        } catch (Throwable $e) {
+            Log::error('Receipt fetch failed', [
+                'error'      => $e->getMessage(),
+                'receipt_id' => $receiptId,
+                'trace'      => $e->getTraceAsString(),
+            ]);
+            // Non-fatal — payment already succeeded, just log it
+            $this->setStatus($jobId, 'completed', 'Order placed. Receipt fetch failed.', [
+                'receipt_id' => $receiptId,
+                'cart_id'    => $cartId,
+                'uploaded'   => $total,
+                'total'      => $total,
+            ]);
         }
 
         $this->cleanup($jobId);
     }
+
+    
 
     private function resizeImageTo825x1125(string $blob): string
     {

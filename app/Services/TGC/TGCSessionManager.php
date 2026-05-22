@@ -86,18 +86,7 @@ class TGCSessionManager
         }
 
         // Fetch designer_id when possible, but don't block cart/session flows if this fails.
-        $designerId = '';
-        try {
-            $designerResponse = Http::acceptJson()
-                ->timeout(30)
-                ->get($baseUrl.'/designer', [
-                    'session_id' => $sessionId,
-                    'user_id'    => $userId,
-                ]);
-
-            $designerId = (string) data_get($designerResponse->json(), 'result.id', '');
-        } catch (RequestException $e) {
-        }
+        $designerId = config('services.tgc.designer_id', '');
 
         Cache::put(self::CACHE_KEY, $sessionId, now()->addHours($ttlHours));
         Cache::put(self::USER_CACHE_KEY, $userId, now()->addHours($ttlHours));

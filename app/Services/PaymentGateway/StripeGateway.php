@@ -16,7 +16,7 @@ class StripeGateway implements PaymentGatewayInterface
 
     public function __construct()
     {
-        $this->stripe = new StripeClient(env('STRIPE_SECRET'));
+        $this->stripe = new StripeClient(config('services.stripe.secret'));
     }
 
     /**
@@ -67,7 +67,7 @@ class StripeGateway implements PaymentGatewayInterface
      */
     public function handleWebhook(string $payload, ?string $sigHeader = null)
     {
-        $webhookSecret = env('STRIPE_WEBHOOK_SECRET');
+        $webhookSecret = config('services.stripe.webhook_secret');
 
         try {
             $event = $webhookSecret && $sigHeader

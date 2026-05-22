@@ -14,6 +14,7 @@ class Order extends Model
         'address1', 'address2',
         'city', 'state', 'country', 'zipcode',
         'total', 'status', 'is_paid', 'is_customized', 'customized_file',
+        'tgc_receipt_id', 'user_id',
     ];
 
     protected $casts = [

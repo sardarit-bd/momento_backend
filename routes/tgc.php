@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\TGC\DeckController;
 use App\Http\Controllers\Api\TGC\FileController;
 use App\Http\Controllers\Api\TGC\FolderController;
 use App\Http\Controllers\Api\TGC\GameController;
+use App\Http\Controllers\Api\TGC\ReceiptController;
 
 Route::middleware('auth:api')->prefix('tgc')->group(function (): void {
     Route::post('/games', [GameController::class, 'store']);
@@ -32,4 +33,6 @@ Route::middleware('auth:api')->prefix('tgc')->group(function (): void {
 
     Route::post('/publish',                [DeckPublishController::class, 'publish'])->name('tgc.publish');
     Route::get('/publish/{jobId}/status',  [DeckPublishController::class, 'status'])->name('tgc.publish.status');
+
+    Route::get('/receipts/{receiptId}', [ReceiptController::class, 'show']);
 });

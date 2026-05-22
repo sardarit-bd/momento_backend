@@ -128,7 +128,8 @@ class TGCService
     public function createCart(): array
     {
         return $this->request('POST', '/cart', [
-            'api_key_id' => config('services.tgc.api_key_id'),
+            'api_key_id' => config('services.tgc.api_key'),
+            'user_id'    => $this->sessionManager->getUserId(),
         ]);
     }
 
@@ -261,42 +262,27 @@ class TGCService
         ], $absoluteImagePath, basename($absoluteImagePath), $mimeType);
     }
 
-    /**
-     * Returns a cloned instance using a specific token (for user-supplied TGC tokens).
-     */
-    // public function withToken(string $token): static
-    // {
-    //     $clone = clone $this;
-    //     $clone->token = $token; // assumes $this->token drives Authorization header
-    //     return $clone;
-    // }
+    public function attachUserToCart(string $cartId): array
+    {
+        return $this->request('POST', '/cart/' . $cartId . '/user', [
+            'user_id' => $this->sessionManager->getUserId(),
+        ]);
+    }
 
-    /**
-     * Upload a card image to a deck.
-     */
-    // public function createCard(string $deckId, string $folderId, string $name, string $absoluteImagePath): array
-    // {
-    //     return $this->http()
-    //         ->attach('face_image', fopen($absoluteImagePath, 'r'), basename($absoluteImagePath))
-    //         ->post("/tgc/decks/{$deckId}/cards", [
-    //             'name'      => $name,
-    //             'folder_id' => $folderId,
-    //         ])
-    //         ->json();
-    // }
+    public function payWithShopCredit(string $cartId): array
+    {
+        return $this->request('POST', '/cart/' . $cartId . '/payment/shopcredit', []);
+    }
 
-    /**
-     * Add a SKU item to a cart.
-     */
-    // public function addItemToCart(string $cartId, string $skuId, int $quantity = 1): array
-    // {
-    //     return $this->http()
-    //         ->post("/tgc/carts/{$cartId}/items", [
-    //             'sku_id'   => $skuId,
-    //             'quantity' => $quantity,
-    //         ])
-    //         ->json();
-    // }
+    public function fetchReceipt(string $receiptId): array
+    {
+        return $this->request('GET', '/receipt/' . $receiptId, []);
+    }
+
+    public function getSessionId(): string
+    {
+        return $this->sessionManager->getSessionId();
+    }
 
     private function buildUrl(string $path): string
     {

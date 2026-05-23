@@ -59,6 +59,7 @@ class OrderController extends Controller
                 'total',
                 'is_customized',
                 'is_paid',
+                'tgc_receipt_id',
                 'created_at',
             ])
             ->orderByDesc('created_at')
@@ -66,13 +67,14 @@ class OrderController extends Controller
 
         $formatted = $orders->getCollection()->map(function ($order) {
             return [
-                'id'            => $order->id,
-                'name'          => $order->name,
-                'email'         => $order->email,
-                'total'         => $order->total,
-                'is_customized' => $order->is_customized,
-                'is_paid'       => $order->is_paid,
-                'created_at'    => $order->created_at,
+                'id'             => $order->id,
+                'name'           => $order->name,
+                'email'          => $order->email,
+                'total'          => $order->total,
+                'is_customized'  => $order->is_customized,
+                'is_paid'        => $order->is_paid,
+                'tgc_receipt_id' => $order->tgc_receipt_id, // ← add this
+                'created_at'     => $order->created_at,
             ];
         });
 
@@ -113,9 +115,10 @@ class OrderController extends Controller
             'total'             => $order->total,
             'status'            => $order->status,
             'is_paid'           => $order->is_paid,
+            'tgc_receipt_id'    => $order->tgc_receipt_id, 
             'is_customized'     => $order->is_customized,
             'customized_file'   => $order->customized_file,
-            'customized_file_url' => $order->customized_file_url ?? null, // keep if your model has it
+            'customized_file_url' => $order->customized_file_url ?? null,
             'stripe_session_id' => $order->stripe_session_id,
             'created_at'        => $order->created_at,
 

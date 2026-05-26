@@ -35,4 +35,5 @@ Route::middleware('auth:api')->prefix('tgc')->group(function (): void {
     Route::get('/publish/{jobId}/status',  [DeckPublishController::class, 'status'])->name('tgc.publish.status');
 
     Route::get('/receipts/{receiptId}', [ReceiptController::class, 'show']);
+    Route::get('/addresses/{addressId}', [AddressController::class, 'show']);
 });

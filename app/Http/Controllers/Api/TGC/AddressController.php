@@ -7,6 +7,7 @@ use App\DTOs\TGC\CreateAddressDTO;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\TGC\CreateAddressRequest;
 use App\Http\Resources\TGC\AddressResource;
+use App\Services\TGC\TGCService;
 
 class AddressController extends Controller
 {
@@ -19,5 +20,11 @@ class AddressController extends Controller
         $payload = $this->createAddressAction->handle(CreateAddressDTO::fromRequest($request));
 
         return (new AddressResource($payload))->response()->setStatusCode(201);
+    }
+
+    public function show(string $addressId)
+    {
+        $payload = app(TGCService::class)->getAddress($addressId);
+        return (new AddressResource($payload))->response();
     }
 }

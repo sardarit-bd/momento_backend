@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\TGC\TradingBoxCompositeService;
 
 class StripeGatewayService
 {
@@ -36,6 +37,8 @@ class StripeGatewayService
             'items.*.FinalPDF'     => 'nullable|array',
             'items.*.FinalProduct' => 'nullable|array',
             'tuckbox_image' => 'nullable|string',
+            'trading_box_pack_title'  => 'nullable|string|max:50',
+            'trading_box_created_for' => 'nullable|string|max:50',
         ]);
 
         try {
@@ -69,14 +72,15 @@ class StripeGatewayService
                 $trustedTotal += $lineTotal;
 
                 $validatedItems[] = [
-                    'product_id'   => $product->id,
-                    'name'         => $product->name,
-                    'product_type' => $product->type ?? 'simple',
-                    'qty'          => $quantity,
-                    'price'        => $sellingPrice,
-                    'total'        => $lineTotal,
-                    'FinalPDF'     => $item['FinalPDF'] ?? null,
-                    'FinalProduct' => $item['FinalProduct'] ?? [],
+                    'product_id'         => $product->id,
+                    'name'               => $product->name,
+                    'product_type'       => $product->type ?? 'simple',
+                    'customization_mode' => $item['customization_mode'] ?? null,
+                    'qty'                => $quantity,
+                    'price'              => $sellingPrice,
+                    'total'              => $lineTotal,
+                    'FinalPDF'           => $item['FinalPDF'] ?? null,
+                    'FinalProduct'       => $item['FinalProduct'] ?? [],
                 ];
             }
 
@@ -136,6 +140,8 @@ class StripeGatewayService
                 'total'    => $trustedTotal,
                 'status'   => 'pending',
                 'is_paid'  => false,
+                'trading_box_pack_title'  => $request->trading_box_pack_title  ?? null,
+                'trading_box_created_for' => $request->trading_box_created_for ?? null,
             ]);
 
             ShippingInformation::updateOrCreate(
@@ -220,6 +226,20 @@ class StripeGatewayService
                 Storage::disk('public')->put($filePath, $tuckboxData);
                 $customizedFiles[] = $filePath;
                 $isCustomized = true;
+            }
+
+            // Trading box composite — isolated, does not touch deck card logic
+            if (!empty($request->trading_box_pack_title) || !empty($request->trading_box_created_for)) {
+                $tradingBoxService = new TradingBoxCompositeService();
+                $tradingBoxPath = $tradingBoxService->composite(
+                    $request->trading_box_pack_title ?? '',
+                    $request->trading_box_created_for ?? ''
+                );
+
+                if ($tradingBoxPath) {
+                    $customizedFiles[] = $tradingBoxPath;
+                    $isCustomized = true;
+                }
             }
 
             // Update order with customization summary
@@ -313,6 +333,8 @@ class StripeGatewayService
                 'total'    => $trustedTotal,
                 'status'   => 'pending',
                 'is_paid'  => false,
+                'trading_box_pack_title'  => $request->trading_box_pack_title  ?? null,
+                'trading_box_created_for' => $request->trading_box_created_for ?? null,
             ]);
 
             ShippingInformation::updateOrCreate(

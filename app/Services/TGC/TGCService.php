@@ -236,6 +236,11 @@ class TGCService
         ]);
     }
 
+    public function getAddress(string $addressId): array
+    {
+        return $this->request('GET', '/address/' . $addressId, []);
+    }
+
     public function getCart(string $cartId): array
     {
         return $this->request('GET', '/cart/'.$cartId, []);

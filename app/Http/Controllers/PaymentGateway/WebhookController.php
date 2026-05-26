@@ -121,9 +121,25 @@ class WebhookController extends Controller
             DB::commit();
 
             if ($order->is_customized) {
-                PublishDeckJob::dispatch($order->id);
-            }
+                $order->loadMissing('orderItems');
 
+                Log::info('Order items customization modes', [
+                    'order_id' => $order->id,
+                    'modes' => $order->orderItems->pluck('customization_mode')->toArray(),
+                ]);
+                
+                $hasDeck    = $order->orderItems->contains(fn($i) => $i->customization_mode === 'deck');
+                $hasTrading = $order->orderItems->contains(fn($i) => $i->customization_mode === 'trading');
+
+                if ($hasDeck) {
+                    PublishDeckJob::dispatch($order->id);
+                }
+
+                if ($hasTrading) {
+                    \App\Jobs\TGC\PublishTradingJob::dispatch($order->id);
+                    Log::info('PublishTradingJob dispatched', ['order_id' => $order->id]);
+                }
+            }
 
             return response()->json([
                 'received' => true,

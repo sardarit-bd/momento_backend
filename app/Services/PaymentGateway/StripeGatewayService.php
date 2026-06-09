@@ -36,9 +36,21 @@ class StripeGatewayService
             'items.*.name'       => 'required|string',
             'items.*.FinalPDF'     => 'nullable|array',
             'items.*.FinalProduct' => 'nullable|array',
-            'tuckbox_image' => 'nullable|string',
-            'trading_box_pack_title'  => 'nullable|string|max:50',
-            'trading_box_created_for' => 'nullable|string|max:50',
+            'tuckbox_characters'   => 'nullable|array',
+            'tuckbox_characters.*' => 'nullable|string',
+            'trading_box_pack_title'   => 'nullable|string|max:50',
+            'tradingBoxPackTitle'      => 'nullable|string|max:50',
+            'trading_box_created_for'  => 'nullable|string|max:50',
+            'tradingBoxCreatedFor'     => 'nullable|string|max:50',
+        ]);
+
+        // Log what the frontend actually sent for the trading box fields.
+        // Helps debug empty boxes when the wrong key is used.
+        Log::info('Trading box values received', [
+            'trading_box_pack_title'  => $request->input('trading_box_pack_title'),
+            'tradingBoxPackTitle'     => $request->input('tradingBoxPackTitle'),
+            'trading_box_created_for' => $request->input('trading_box_created_for'),
+            'tradingBoxCreatedFor'    => $request->input('tradingBoxCreatedFor'),
         ]);
 
         try {
@@ -48,14 +60,14 @@ class StripeGatewayService
             // Validate all products first
             foreach ($request->items as $item) {
                 $product = Product::find($item['product_id']);
-                
+
                 if (!$product) {
                     return response()->json([
                         'success' => false,
                         'message' => "Product with ID {$item['product_id']} not found",
                     ], 404);
                 }
-                
+
                 if ($product->status != 1) {
                     return response()->json([
                         'success' => false,
@@ -63,8 +75,8 @@ class StripeGatewayService
                     ], 400);
                 }
 
-                $sellingPrice = $product->offer_price > 0 
-                    ? $product->offer_price 
+                $sellingPrice = $product->offer_price > 0
+                    ? $product->offer_price
                     : $product->price;
 
                 $quantity = (int) $item['qty'];
@@ -84,7 +96,7 @@ class StripeGatewayService
                 ];
             }
 
-            // Handle COD 
+            // Handle COD
             if ($request->gateway === 'cod' || $request->gateway === 'cash_on_delivery') {
                 return $this->createCODOrder($request, $validatedItems, $trustedTotal);
             }
@@ -94,23 +106,26 @@ class StripeGatewayService
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('Validation failed', ['errors' => $e->errors()]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
                 'errors'  => $e->errors(),
             ], 422);
-            
+
+        // StripeGatewayService.php — replace the outer catch block
         } catch (\Exception $e) {
             Log::error('Checkout session creation failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
+                'class' => get_class($e),               
+                'file'  => $e->getFile(),               
+                'line'  => $e->getLine(),               
             ]);
-            
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create checkout session',
-                'error'   => config('app.debug') ? $e->getMessage() : 'Internal server error',
+                'error'   => 'Internal server error',  
             ], 500);
         }
     }
@@ -140,8 +155,8 @@ class StripeGatewayService
                 'total'    => $trustedTotal,
                 'status'   => 'pending',
                 'is_paid'  => false,
-                'trading_box_pack_title'  => $request->trading_box_pack_title  ?? null,
-                'trading_box_created_for' => $request->trading_box_created_for ?? null,
+                'trading_box_pack_title'  => $this->tradingBoxValue($request, 'trading_box_pack_title',  'tradingBoxPackTitle'),
+                'trading_box_created_for' => $this->tradingBoxValue($request, 'trading_box_created_for', 'tradingBoxCreatedFor'),
             ]);
 
             ShippingInformation::updateOrCreate(
@@ -172,7 +187,7 @@ class StripeGatewayService
                 // Determine if this item is customized based on product type
                 $productType = strtolower($item['product_type'] ?? 'simple');
                 $hasCustomization = match($productType) {
-                    'trading', 'customizable' => true,  
+                    'trading', 'customizable' => true,
                     'simple'                  => false,
                     default                   => !empty($item['FinalProduct']),
                 };
@@ -182,6 +197,21 @@ class StripeGatewayService
                     $item['FinalProduct'] ?? [],
                     $item['customization_mode'] ?? null
                 );
+
+                $productType = strtolower($item['product_type'] ?? '');
+                if (in_array($productType, ['deck', 'deck-card', 'poker-deck']) || ($item['customization_mode'] ?? null) === 'deck') {
+                    if (!empty($request->tuckbox_image)) {
+                        $tuckboxRaw = $request->tuckbox_image;
+                        if (str_contains($tuckboxRaw, 'base64,')) {
+                            $tuckboxRaw = explode('base64,', $tuckboxRaw)[1];
+                        }
+                        $tuckboxBlob = base64_decode($tuckboxRaw);
+                        $orderItem->update([
+                            'tuckbox_image_blob' => $tuckboxBlob,
+                            'tuckbox_image_mime' => 'image/png',
+                        ]);
+                    }
+                }
 
                 if ($cardSaveResult['count'] > 0) {
                     $isCustomized = true;
@@ -206,34 +236,80 @@ class StripeGatewayService
                 }
             }
 
-            if (!empty($request->tuckbox_image)) {
-                $tuckboxRaw = $request->tuckbox_image;
+            // if (!empty($request->tuckbox_image)) {
+            //     $tuckboxRaw = $request->tuckbox_image;
 
-                Log::info('Tuckbox raw received', [
-                    'length' => strlen($tuckboxRaw),
-                    'prefix' => substr($tuckboxRaw, 0, 50),
-                    'has_base64' => str_contains($tuckboxRaw, 'base64,'),
-                ]);
-                
-                // Strip data URL prefix if present
-                if (str_contains($tuckboxRaw, 'base64,')) {
-                    $tuckboxRaw = explode('base64,', $tuckboxRaw)[1];
+            //     Log::info('Tuckbox raw received', [
+            //         'length' => strlen($tuckboxRaw),
+            //         'prefix' => substr($tuckboxRaw, 0, 50),
+            //         'has_base64' => str_contains($tuckboxRaw, 'base64,'),
+            //     ]);
+
+            //     // Strip data URL prefix if present
+            //     if (str_contains($tuckboxRaw, 'base64,')) {
+            //         $tuckboxRaw = explode('base64,', $tuckboxRaw)[1];
+            //     }
+
+            //     $tuckboxData = base64_decode($tuckboxRaw);
+            //     $fileName = 'tuckbox_' . time() . '.png';
+            //     $filePath = 'customized_files/' . $fileName;
+            //     Storage::disk('public')->put($filePath, $tuckboxData);
+            //     $customizedFiles[] = $filePath;
+            //     $isCustomized = true;
+            // }
+
+            if (!empty($request->tuckbox_characters)) {
+                $characterBlobs = [];
+
+                foreach ($request->tuckbox_characters as $b64) {
+                    if (empty($b64)) continue;
+                    $raw = $b64;
+                    if (str_contains($raw, 'base64,')) {
+                        $raw = explode('base64,', $raw, 2)[1];
+                    }
+                    $decoded = base64_decode($raw);
+                    if ($decoded !== false) {
+                        $characterBlobs[] = $decoded;
+                    }
                 }
-                
-                $tuckboxData = base64_decode($tuckboxRaw);
-                $fileName = 'tuckbox_' . time() . '.png';
-                $filePath = 'customized_files/' . $fileName;
-                Storage::disk('public')->put($filePath, $tuckboxData);
-                $customizedFiles[] = $filePath;
-                $isCustomized = true;
+
+                if (!empty($characterBlobs)) {
+                    $compositeService = new \App\Services\TGC\TuckBoxCompositeService();
+                    $tuckboxBlob = $compositeService->composite($characterBlobs);
+
+                    $order->loadMissing('orderItems.product');
+
+                    $deckItem = $order->orderItems->first(function ($item) {
+                        $type = strtolower((string) ($item->product?->type ?? ''));
+                        return in_array($type, ['deck', 'deck-card', 'poker-deck'])
+                            || $item->customization_mode === 'deck';
+                    });
+
+                    if ($deckItem) {
+                        $deckItem->update([
+                            'tuckbox_image_blob' => $tuckboxBlob,
+                            'tuckbox_image_mime' => 'image/png',
+                        ]);
+                    }
+
+                    // Save to disk for admin preview
+                    $fileName = 'tuckbox_' . time() . '.png';
+                    $filePath = 'customized_files/' . $fileName;
+                    Storage::disk('public')->put($filePath, $tuckboxBlob);
+                    $customizedFiles[] = $filePath;
+                    $isCustomized = true;
+                }
             }
 
             // Trading box composite — isolated, does not touch deck card logic
-            if (!empty($request->trading_box_pack_title) || !empty($request->trading_box_created_for)) {
+            $packTitle  = $this->tradingBoxValue($request, 'trading_box_pack_title',  'tradingBoxPackTitle');
+            $createdFor = $this->tradingBoxValue($request, 'trading_box_created_for', 'tradingBoxCreatedFor');
+
+            if (!empty($packTitle) || !empty($createdFor)) {
                 $tradingBoxService = new TradingBoxCompositeService();
                 $tradingBoxPath = $tradingBoxService->composite(
-                    $request->trading_box_pack_title ?? '',
-                    $request->trading_box_created_for ?? ''
+                    $packTitle  ?? '',
+                    $createdFor ?? ''
                 );
 
                 if ($tradingBoxPath) {
@@ -333,8 +409,8 @@ class StripeGatewayService
                 'total'    => $trustedTotal,
                 'status'   => 'pending',
                 'is_paid'  => false,
-                'trading_box_pack_title'  => $request->trading_box_pack_title  ?? null,
-                'trading_box_created_for' => $request->trading_box_created_for ?? null,
+                'trading_box_pack_title'  => $this->tradingBoxValue($request, 'trading_box_pack_title',  'tradingBoxPackTitle'),
+                'trading_box_created_for' => $this->tradingBoxValue($request, 'trading_box_created_for', 'tradingBoxCreatedFor'),
             ]);
 
             ShippingInformation::updateOrCreate(
@@ -351,7 +427,7 @@ class StripeGatewayService
                     'zipcode'    => $request->zipcode,
                 ]
             );
-            
+
             foreach ($validatedItems as $item) {
                 $orderItem = $order->orderItems()->create([
                     'product_id' => $item['product_id'],
@@ -411,19 +487,13 @@ class StripeGatewayService
      */
     private function storeOrderItemCards($orderItem, array $finalProduct, ?string $requestedMode = null): array
     {
-        
+
         if (empty($finalProduct)) {
             return ['count' => 0, 'mode' => 'none'];
         }
 
         $entries = [];
-        Log::info('storeOrderItemCards entry', [
-            'entry' => array_map(fn($e) => [
-                'rank' => $e['rank'] ?? null,
-                'name' => $e['name'] ?? null,
-                'side' => $e['side'] ?? null,
-            ], $entries),
-        ]);
+        
         foreach ($finalProduct as $entry) {
             if (is_string($entry)) {
                 $entries[] = ['image' => $entry];
@@ -434,6 +504,14 @@ class StripeGatewayService
                 $entries[] = $entry;
             }
         }
+
+        Log::info('storeOrderItemCards entry', [
+            'entry' => array_map(fn($e) => [
+                'rank' => $e['rank'] ?? null,
+                'name' => $e['name'] ?? null,
+                'side' => $e['side'] ?? null,
+            ], $entries),
+        ]);
 
         if (empty($entries)) {
             return ['count' => 0, 'mode' => 'none'];
@@ -475,7 +553,7 @@ class StripeGatewayService
                 'position'         => $index + 1,
                 'image_blob'       => $blob,
                 'image_mime'       => $mime,
-                'character_blob'   => $characterBlob,  
+                'character_blob'   => $characterBlob,
                 'character_mime'   => $characterMime,
                 'image_size_bytes' => strlen($blob),
                 'image_sha256'     => hash('sha256', $blob),
@@ -530,5 +608,19 @@ class StripeGatewayService
         }
 
         return in_array(count($entries), [4, 5], true) ? 'deck' : 'trading';
+    }
+
+    /**
+     * Read a value from the request, accepting both snake_case and
+     * camelCase keys, with empty strings normalised to null.
+     */
+    private function tradingBoxValue(Request $request, string $snake, string $camel): ?string
+    {
+        $value = $request->input($snake, $request->input($camel));
+        if ($value === null) {
+            return null;
+        }
+        $value = trim((string) $value);
+        return $value === '' ? null : $value;
     }
 }

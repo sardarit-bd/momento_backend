@@ -24,16 +24,19 @@ class OrderItemCard extends Model
         'image_sha256',
     ];
 
+    // ─────────────────────────────────────────────────────────────────────
+    // IMPORTANT: image_blob and character_blob must NOT be in $hidden.
+    // SerializesModels strips hidden fields when the job is queued, so the
+    // job would always receive null blobs even when the DB has real data.
+    // If you need to hide them from API responses, use an API Resource or
+    // $visible on the specific resource — not $hidden on the model itself.
+    // ─────────────────────────────────────────────────────────────────────
     protected $hidden = [
-        'image_blob',
-        'character_blob',
-        'image_mime',
-        'character_mime',
-        'image_sha256',
+        // intentionally empty
     ];
 
     protected $casts = [
-        'position' => 'integer',
+        'position'         => 'integer',
         'image_size_bytes' => 'integer',
     ];
 

@@ -121,15 +121,31 @@ class WebhookController extends Controller
             DB::commit();
 
             if ($order->is_customized) {
-                $order->loadMissing('orderItems');
+                $order->loadMissing('orderItems.product');
 
                 Log::info('Order items customization modes', [
                     'order_id' => $order->id,
                     'modes' => $order->orderItems->pluck('customization_mode')->toArray(),
                 ]);
-                
-                $hasDeck    = $order->orderItems->contains(fn($i) => $i->customization_mode === 'deck');
-                $hasTrading = $order->orderItems->contains(fn($i) => $i->customization_mode === 'trading');
+
+                // Route each order item to the correct TGC job based on the
+                // product type (authoritative source). Fall back to the stored
+                // customization_mode only when the product type is missing.
+                $hasDeck = $order->orderItems->contains(function ($i) {
+                    $type = strtolower((string) optional($i->product)->type);
+                    if (in_array($type, ['deck', 'deck-card', 'poker-deck'])) {
+                        return true;
+                    }
+                    return $i->customization_mode === 'deck';
+                });
+
+                $hasTrading = $order->orderItems->contains(function ($i) {
+                    $productType = strtolower((string) optional($i->product)->type);
+                    if ($productType !== '') {
+                        return $productType === 'trading';
+                    }
+                    return $i->customization_mode === 'trading';
+                });
 
                 if ($hasDeck) {
                     PublishDeckJob::dispatch($order->id);

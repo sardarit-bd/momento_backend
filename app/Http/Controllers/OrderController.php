@@ -312,7 +312,14 @@ class OrderController extends Controller
                 'status'  => 201,
                 'message' => 'Order created successfully',
                 'data'    => [
-                    'order' => $order->load(['orderItems.product', 'orderHasPaids']),
+                    'order' => [
+                        'id'         => $order->id,
+                        'name'       => $order->name,
+                        'email'      => $order->email,
+                        'total'      => $order->total,
+                        'status'     => $order->status,
+                        'created_at' => $order->created_at,
+                    ],
                 ],
             ]);
         } catch (\Exception $e) {

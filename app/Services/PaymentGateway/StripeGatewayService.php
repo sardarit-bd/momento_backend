@@ -236,27 +236,6 @@ class StripeGatewayService
                 }
             }
 
-            // if (!empty($request->tuckbox_image)) {
-            //     $tuckboxRaw = $request->tuckbox_image;
-
-            //     Log::info('Tuckbox raw received', [
-            //         'length' => strlen($tuckboxRaw),
-            //         'prefix' => substr($tuckboxRaw, 0, 50),
-            //         'has_base64' => str_contains($tuckboxRaw, 'base64,'),
-            //     ]);
-
-            //     // Strip data URL prefix if present
-            //     if (str_contains($tuckboxRaw, 'base64,')) {
-            //         $tuckboxRaw = explode('base64,', $tuckboxRaw)[1];
-            //     }
-
-            //     $tuckboxData = base64_decode($tuckboxRaw);
-            //     $fileName = 'tuckbox_' . time() . '.png';
-            //     $filePath = 'customized_files/' . $fileName;
-            //     Storage::disk('public')->put($filePath, $tuckboxData);
-            //     $customizedFiles[] = $filePath;
-            //     $isCustomized = true;
-            // }
 
             if (!empty($request->tuckbox_characters)) {
                 $characterBlobs = [];

@@ -34,7 +34,6 @@ class PublishTradingJob implements ShouldQueue
 
     public function handle(TGCService $tgc): void
     {
-        Log::info('PublishTradingJob started', ['order_id' => $this->orderId]);
 
         try {
             $order = \App\Models\Order::with([
@@ -62,7 +61,6 @@ class PublishTradingJob implements ShouldQueue
             $skuId  = data_get($game, 'result.sku_id')
                 ?? throw new \RuntimeException('TGC game creation failed: no sku_id');
             $this->setStatus($jobId, 'running', 'Game created.');
-            Log::info('TGC Game created', ['game_id' => $gameId]);
         } catch (Throwable $e) {
             Log::error('Game creation failed', ['error' => $e->getMessage()]);
             $this->setStatus($jobId, 'failed', 'Game creation failed: ' . $e->getMessage());
@@ -128,7 +126,6 @@ class PublishTradingJob implements ShouldQueue
             $backFileId = data_get($backFileResponse, 'result.id')
                 ?? throw new \RuntimeException('No file ID for back card');
 
-            Log::info('Back card uploaded', ['back_file_id' => $backFileId]);
             $this->setStatus($jobId, 'running', 'Back card uploaded.');
 
         } catch (Throwable $e) {
@@ -183,7 +180,6 @@ class PublishTradingJob implements ShouldQueue
             $boxFileId = data_get($boxFileResponse, 'result.id')
                 ?? throw new \RuntimeException('No file ID for trading box');
 
-            Log::info('Trading box uploaded', ['box_file_id' => $boxFileId]);
             $this->setStatus($jobId, 'running', 'Trading box uploaded.');
 
         } catch (Throwable $e) {
@@ -236,11 +232,6 @@ try {
         6 => 3,
         default => throw new \RuntimeException("Unexpected front card count: {$frontCount}"),
     };
-
-    Log::info('Trading package detected', [
-        'front_count'       => $frontCount,
-        'copies_per_design' => $copiesPerDesign,
-    ]);
 
     $cardSequence = [];
     foreach ($fronts as $frontCard) {
@@ -296,7 +287,6 @@ try {
 
         if ($cardNumber < $total) sleep(1);
 
-        Log::info('Trading card uploaded', ['card_number' => $cardNumber]);
     }
 
 } catch (Throwable $e) {
@@ -405,7 +395,6 @@ try {
             $receiptId       = data_get($paymentResponse, 'result.id')
                 ?? throw new \RuntimeException('No receipt ID from payment');
 
-            Log::info('TGC Trading payment successful', ['receipt_id' => $receiptId]);
         } catch (Throwable $e) {
             $this->setStatus($jobId, 'failed', 'Payment failed: ' . $e->getMessage());
             $this->cleanup($jobId);
@@ -426,10 +415,6 @@ try {
                 'total'      => $total,
             ]);
 
-            Log::info('PublishTradingJob completed', [
-                'order_id'   => $this->orderId,
-                'receipt_id' => $receiptId,
-            ]);
         } catch (Throwable $e) {
             // Non-fatal
             $this->setStatus($jobId, 'completed', 'Order placed. Receipt fetch failed.', [
@@ -443,20 +428,11 @@ try {
 
     private function resizeImageTo825x1125(string $blob): string
     {
-        Log::info('resizeImageTo825x1125 input', [
-            'blob_size' => strlen($blob),
-            'first_bytes' => bin2hex(substr($blob, 0, 8)),
-        ]);
 
         $src = imagecreatefromstring($blob);
         if (!$src) {
             throw new \RuntimeException('Failed to create image from blob');
         }
-
-        Log::info('resizeImageTo825x1125 src dimensions', [
-            'width'  => imagesx($src),
-            'height' => imagesy($src),
-        ]);
 
         $dst = imagecreatetruecolor(825, 1125);
         imagecopyresampled($dst, $src, 0, 0, 0, 0, 825, 1125, imagesx($src), imagesy($src));

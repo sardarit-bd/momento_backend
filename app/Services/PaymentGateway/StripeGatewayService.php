@@ -44,15 +44,6 @@ class StripeGatewayService
             'tradingBoxCreatedFor'     => 'nullable|string|max:50',
         ]);
 
-        // Log what the frontend actually sent for the trading box fields.
-        // Helps debug empty boxes when the wrong key is used.
-        Log::info('Trading box values received', [
-            'trading_box_pack_title'  => $request->input('trading_box_pack_title'),
-            'tradingBoxPackTitle'     => $request->input('tradingBoxPackTitle'),
-            'trading_box_created_for' => $request->input('trading_box_created_for'),
-            'tradingBoxCreatedFor'    => $request->input('tradingBoxCreatedFor'),
-        ]);
-
         try {
             $validatedItems = [];
             $trustedTotal = 0;
@@ -68,7 +59,7 @@ class StripeGatewayService
                     ], 404);
                 }
 
-                if ($product->status != 1) {
+                if (strtolower(trim((string) $product->status)) !== 'active') {
                     return response()->json([
                         'success' => false,
                         'message' => "Product '{$product->name}' is currently unavailable",
@@ -484,14 +475,6 @@ class StripeGatewayService
             }
         }
 
-        Log::info('storeOrderItemCards entry', [
-            'entry' => array_map(fn($e) => [
-                'rank' => $e['rank'] ?? null,
-                'name' => $e['name'] ?? null,
-                'side' => $e['side'] ?? null,
-            ], $entries),
-        ]);
-
         if (empty($entries)) {
             return ['count' => 0, 'mode' => 'none'];
         }
@@ -521,7 +504,8 @@ class StripeGatewayService
                 $rank = null;
             }
 
-            [$characterMime, $characterBlob] = $this->decodeBase64Image($entry['character_image'] ?? '');
+            $characterImage = $entry['character_image'] ?? '';
+            [$characterMime, $characterBlob] = $this->decodeBase64Image($characterImage);
 
             $orderItem->cards()->create([
                 'card_pair_key'    => $isTrading ? ($entry['card_pair_key'] ?? $tradingGroupKey) : null,
@@ -532,8 +516,8 @@ class StripeGatewayService
                 'position'         => $index + 1,
                 'image_blob'       => $blob,
                 'image_mime'       => $mime,
-                'character_blob'   => $characterBlob,
-                'character_mime'   => $characterMime,
+                'character_blob'   => $characterBlob ?: null,
+                'character_mime'   => $characterBlob ? $characterMime : null,
                 'image_size_bytes' => strlen($blob),
                 'image_sha256'     => hash('sha256', $blob),
             ]);
@@ -550,6 +534,10 @@ class StripeGatewayService
      */
     private function decodeBase64Image(string $payload): array
     {
+        if (trim($payload) === '') {
+            return [null, null];
+        }
+
         $mime = null;
         $encoded = $payload;
 
@@ -559,7 +547,7 @@ class StripeGatewayService
         }
 
         $decoded = base64_decode(str_replace(' ', '+', $encoded), true);
-        if ($decoded === false) {
+        if ($decoded === false || $decoded === '') {
             return [null, null];
         }
 

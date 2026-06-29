@@ -43,11 +43,6 @@ class PublishDeckJob implements ShouldQueue
     {
         $jobId = (string) \Illuminate\Support\Str::uuid();
 
-        Log::info('PublishDeckJob started', [
-            'order_id' => $this->orderId,
-            'job_id'   => $jobId,
-        ]);
-
         $this->setStatus($jobId, 'running', 'Loading order data...');
 
         // ── Load order with all required relations ─────────────────────────
@@ -66,13 +61,6 @@ class PublishDeckJob implements ShouldQueue
             $allCards = OrderItemCard::whereIn('order_item_id', $orderItemIds)
                 ->orderBy('position')
                 ->get();
-
-            Log::info('Order loaded', [
-                'order_id'    => $order->id,
-                'items'       => $order->orderItems->count(),
-                'cards_total' => $allCards->count(),
-                'card_slots'  => $allCards->pluck('slot_name')->toArray(),
-            ]);
 
             if ($allCards->isEmpty()) {
                 throw new \RuntimeException(
@@ -111,7 +99,6 @@ class PublishDeckJob implements ShouldQueue
             $skuId  = data_get($game, 'result.sku_id')
                 ?? throw new \RuntimeException('TGC createGame: no result.sku_id in response. Response: ' . json_encode($game));
 
-            Log::info('Game created', ['game_id' => $gameId, 'sku_id' => $skuId]);
             $this->setStatus($jobId, 'running', 'Game created.');
 
         } catch (Throwable $e) {
@@ -128,7 +115,7 @@ class PublishDeckJob implements ShouldQueue
             $folderId = data_get($folder, 'result.id')
                 ?? throw new \RuntimeException('TGC createFolder: no result.id. Response: ' . json_encode($folder));
 
-            Log::info('Folder created', ['folder_id' => $folderId]);
+          
             $this->setStatus($jobId, 'running', 'Folder created.');
 
         } catch (Throwable $e) {
@@ -151,7 +138,6 @@ class PublishDeckJob implements ShouldQueue
             $deckId = data_get($deck, 'result.id')
                 ?? throw new \RuntimeException('TGC createDeck: no result.id. Response: ' . json_encode($deck));
 
-            Log::info('Deck created', ['deck_id' => $deckId]);
             $this->setStatus($jobId, 'running', 'Deck created.');
 
         } catch (Throwable $e) {
@@ -201,7 +187,6 @@ class PublishDeckJob implements ShouldQueue
             $boxFileId = data_get($boxFileResponse, 'result.id')
                 ?? throw new \RuntimeException('No file ID returned for tuckbox. Response: ' . json_encode($boxFileResponse));
 
-            Log::info('Tuckbox uploaded', ['box_file_id' => $boxFileId]);
             $this->setStatus($jobId, 'running', 'Tuckbox image uploaded.');
 
         } catch (Throwable $e) {
@@ -222,7 +207,6 @@ class PublishDeckJob implements ShouldQueue
             $tuckboxId = data_get($tuckbox, 'result.id')
                 ?? throw new \RuntimeException('TGC createTuckBox: no result.id. Response: ' . json_encode($tuckbox));
 
-            Log::info('TuckBox created', ['tuckbox_id' => $tuckboxId]);
             $this->setStatus($jobId, 'running', 'TuckBox created.');
 
         } catch (Throwable $e) {
@@ -240,11 +224,6 @@ class PublishDeckJob implements ShouldQueue
             $cardsBySlot = $allCards
                 ->where('card_type', 'deck')
                 ->keyBy('slot_name');
-
-            Log::info('Cards by slot built', [
-                'custom_slot_count' => $cardsBySlot->count(),
-                'slots'             => $cardsBySlot->keys()->toArray(),
-            ]);
 
             $deckOrder = [
                 'Clubs_Ace',         'Clubs_Number_2',    'Clubs_Number_3',    'Clubs_Number_4',
@@ -275,10 +254,6 @@ class PublishDeckJob implements ShouldQueue
                     $card = $cardsBySlot[$slotName];
 
                     if (empty($card->image_blob)) {
-                        Log::warning('Custom card matched but image_blob empty — using default', [
-                            'slot'    => $slotName,
-                            'card_id' => $card->id,
-                        ]);
                         $this->writeDefaultCard($slotName, $filename, $targetPath);
                     } else {
                         $blob = $card->image_blob;
@@ -287,7 +262,7 @@ class PublishDeckJob implements ShouldQueue
                         }
                         $resized = $this->resizeImageTo825x1125($blob);
                         Storage::disk('local')->put($targetPath, $resized);
-                        Log::info('Custom card written', ['slot' => $slotName, 'card_id' => $card->id]);
+
                     }
                 } else {
                     $this->writeDefaultCard($slotName, $filename, $targetPath);
@@ -295,8 +270,6 @@ class PublishDeckJob implements ShouldQueue
 
                 $cardPaths[] = Storage::disk('local')->path($targetPath);
             }
-
-            Log::info('All card temp files prepared', ['total' => $total]);
 
             // ── Upload each card to TGC ────────────────────────────────────
             foreach ($cardPaths as $index => $absolutePath) {
@@ -331,12 +304,6 @@ class PublishDeckJob implements ShouldQueue
                     'total'    => $total,
                 ]);
 
-                Log::info('Card uploaded', [
-                    'card_number'  => $cardNumber,
-                    'slot'         => $deckOrder[$index],
-                    'face_file_id' => $faceFileId,
-                ]);
-
                 if ($cardNumber < $total) sleep(1);
             }
 
@@ -355,7 +322,6 @@ class PublishDeckJob implements ShouldQueue
             $cartId       = data_get($cartResponse, 'result.id')
                 ?? throw new \RuntimeException('No cart ID from TGC. Response: ' . json_encode($cartResponse));
 
-            Log::info('Cart created', ['cart_id' => $cartId]);
             $this->setStatus($jobId, 'running', 'Cart created.');
 
         } catch (Throwable $e) {
@@ -384,7 +350,6 @@ class PublishDeckJob implements ShouldQueue
             $addressId = data_get($addressResponse, 'result.id')
                 ?? throw new \RuntimeException('No address ID from TGC. Response: ' . json_encode($addressResponse));
 
-            Log::info('Address created', ['address_id' => $addressId]);
             $this->setStatus($jobId, 'running', 'Shipping address created.');
 
         } catch (Throwable $e) {
@@ -398,7 +363,6 @@ class PublishDeckJob implements ShouldQueue
         try {
             $tgc->updateCart($cartId, ['shipping_address_id' => $addressId]);
 
-            Log::info('Address attached to cart', ['cart_id' => $cartId, 'address_id' => $addressId]);
             $this->setStatus($jobId, 'running', 'Address attached to cart.');
 
         } catch (Throwable $e) {
@@ -416,7 +380,6 @@ class PublishDeckJob implements ShouldQueue
                 quantity: 1,
             ));
 
-            Log::info('SKU added to cart', ['cart_id' => $cartId, 'sku_id' => $skuId]);
             $this->setStatus($jobId, 'running', 'SKU added to cart.');
 
         } catch (Throwable $e) {
@@ -430,7 +393,6 @@ class PublishDeckJob implements ShouldQueue
         try {
             $tgc->attachUserToCart($cartId);
 
-            Log::info('Session attached to cart', ['cart_id' => $cartId]);
             $this->setStatus($jobId, 'running', 'Session attached to cart.');
 
         } catch (Throwable $e) {
@@ -445,12 +407,6 @@ class PublishDeckJob implements ShouldQueue
             $cartDetails = $tgc->getCart($cartId);
             $grandTotal  = (float) data_get($cartDetails, 'result.grand_total', 0);
             $shopCredit  = (float) data_get($cartDetails, 'result.applicable_shop_credit', 0);
-
-            Log::info('Cart totals', [
-                'grand_total' => $grandTotal,
-                'shop_credit' => $shopCredit,
-                'cart_id'     => $cartId,
-            ]);
 
             if ($shopCredit < $grandTotal) {
                 throw new \RuntimeException(
@@ -475,8 +431,6 @@ class PublishDeckJob implements ShouldQueue
             $receiptId       = data_get($paymentResponse, 'result.id')
                 ?? throw new \RuntimeException('No receipt ID from TGC. Response: ' . json_encode($paymentResponse));
 
-            Log::info('Payment successful', ['receipt_id' => $receiptId]);
-
         } catch (Throwable $e) {
             Log::error('Payment failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             $this->setStatus($jobId, 'failed', 'Payment failed: ' . $e->getMessage());
@@ -497,12 +451,6 @@ class PublishDeckJob implements ShouldQueue
                 'cart_id'    => $cartId,
                 'uploaded'   => $total,
                 'total'      => $total,
-            ]);
-
-            Log::info('PublishDeckJob completed', [
-                'order_id'   => $this->orderId,
-                'job_id'     => $jobId,
-                'receipt_id' => $receiptId,
             ]);
 
         } catch (Throwable $e) {
@@ -539,7 +487,6 @@ class PublishDeckJob implements ShouldQueue
         }
 
         Storage::disk('local')->copy($defaultPath, $targetPath);
-        Log::debug('Default card used', ['slot' => $slotName]);
     }
 
     private function resizeImageTo825x1125(string $blob): string
@@ -579,7 +526,6 @@ class PublishDeckJob implements ShouldQueue
             $tempDir = 'temp/' . $jobId;
             if (Storage::disk('local')->exists($tempDir)) {
                 Storage::disk('local')->deleteDirectory($tempDir);
-                Log::info('Temp directory cleaned', ['dir' => $tempDir]);
             }
         } catch (Throwable $e) {
             Log::warning('Cleanup failed', ['error' => $e->getMessage()]);

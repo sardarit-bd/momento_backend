@@ -145,11 +145,6 @@ class CardMergeService
                 $originalName   = basename($absolutePath);
                 $targetFilename = $this->resolveTargetFilename($originalName);
 
-                Log::info('mergeFromPaths processing', [
-                    'file'   => $originalName,
-                    'target' => $targetFilename,
-                ]);
-
                 if ($targetFilename === null) continue;
 
                 $contents = file_get_contents($absolutePath);

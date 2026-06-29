@@ -13,7 +13,6 @@ class TuckBoxCompositeService
 
     public function composite(array $characterBlobs): string
     {
-        Log::info('TuckBox file loaded from', ['path' => __FILE__]);
 
         $W = self::W;
         $H = self::H;
@@ -150,15 +149,6 @@ class TuckBoxCompositeService
             $scaledX += $clipLeft;
             $scaledY += $clipTop;
         }
-
-        Log::info('Zone2 slot', [
-            'i'       => $slot['i'],
-            'z'       => $slot['z'] ?? 1,
-            'scaledY' => $scaledY,
-            'finalH'  => imagesy($scaled),
-            'bottom'  => $scaledY + imagesy($scaled),
-            'H'       => $H,
-        ]);
 
         imagecopy($canvas, $scaled, $scaledX, $scaledY, 0, 0, imagesx($scaled), imagesy($scaled));
         imagedestroy($scaled);

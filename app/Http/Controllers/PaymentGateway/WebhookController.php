@@ -123,13 +123,6 @@ class WebhookController extends Controller
             if ($order->is_customized) {
                 $order->loadMissing('orderItems.product');
 
-                Log::info('Order items customization modes', [
-                    'order_id' => $order->id,
-                    'modes' => $order->orderItems->pluck('customization_mode')->toArray(),
-                ]);
-
-                // Route each order item to the correct TGC job based on the
-                // product type (authoritative source). Fall back to the stored
                 // customization_mode only when the product type is missing.
                 $hasDeck = $order->orderItems->contains(function ($i) {
                     $type = strtolower((string) optional($i->product)->type);
@@ -153,7 +146,6 @@ class WebhookController extends Controller
 
                 if ($hasTrading) {
                     \App\Jobs\TGC\PublishTradingJob::dispatch($order->id);
-                    Log::info('PublishTradingJob dispatched', ['order_id' => $order->id]);
                 }
             }
 

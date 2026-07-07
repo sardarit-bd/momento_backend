@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\CartPriceResolver;
 use App\Services\TGC\TradingBoxCompositeService;
 
 class StripeGatewayService
@@ -32,6 +33,8 @@ class StripeGatewayService
             'items'      => 'required|array|min:1',
             'items.*.product_id' => 'required|integer',
             'items.*.qty'        => 'required|integer|min:1',
+            'items.*.package_slug' => 'nullable|string',
+            'items.*.has_joker'  => 'sometimes|boolean',
             'items.*.price'      => 'nullable|numeric|min:0',
             'items.*.name'       => 'required|string',
             'items.*.FinalPDF'     => 'nullable|array',
@@ -45,8 +48,9 @@ class StripeGatewayService
         ]);
 
         try {
+            $resolver = app(CartPriceResolver::class);
             $validatedItems = [];
-            $trustedTotal = 0;
+            $pricingItems = [];
 
             // Validate all products first
             foreach ($request->items as $item) {
@@ -66,22 +70,33 @@ class StripeGatewayService
                     ], 400);
                 }
 
-                $sellingPrice = $product->offer_price > 0
-                    ? $product->offer_price
-                    : $product->price;
-
                 $quantity = (int) $item['qty'];
-                $lineTotal = $sellingPrice * $quantity;
-                $trustedTotal += $lineTotal;
+                $pricingItems[] = [
+                    'product_id' => $product->id,
+                    'qty' => $quantity,
+                    'package_slug' => $item['package_slug'] ?? null,
+                    'has_joker' => !empty($item['has_joker']),
+                ];
+            }
+
+            $pricedCart = $resolver->priceCart($pricingItems);
+            $trustedTotal = $pricedCart['subtotal'];
+
+            foreach ($request->items as $index => $item) {
+                $product = Product::find($item['product_id']);
+                $pricing = $resolver->resolveUnitPrice($pricingItems[$index]);
 
                 $validatedItems[] = [
                     'product_id'         => $product->id,
                     'name'               => $product->name,
                     'product_type'       => $product->type ?? 'simple',
                     'customization_mode' => $item['customization_mode'] ?? null,
-                    'qty'                => $quantity,
-                    'price'              => $sellingPrice,
-                    'total'              => $lineTotal,
+                    'qty'                => (int) $item['qty'],
+                    'price'              => $pricing['unit_price'],
+                    'base_price'         => $pricing['base_price'],
+                    'joker_addon'        => $pricing['joker_addon'],
+                    'has_joker'          => !empty($item['has_joker']),
+                    'total'              => round($pricing['unit_price'] * (int) $item['qty'], 2),
                     'FinalPDF'           => $item['FinalPDF'] ?? null,
                     'FinalProduct'       => $item['FinalProduct'] ?? [],
                 ];
@@ -173,6 +188,8 @@ class StripeGatewayService
                     'product_id' => $item['product_id'],
                     'quantity'   => $item['qty'],
                     'price'      => $item['price'],
+                    'has_joker'  => !empty($item['has_joker']),
+                    'addon_amount' => round($item['joker_addon'] ?? 0.0, 2),
                 ]);
 
                 // Determine if this item is customized based on product type
@@ -249,7 +266,7 @@ class StripeGatewayService
 
                     $order->loadMissing('orderItems.product');
 
-                    $deckItem = $order->orderItems->first(function ($item) {
+                    $deckItem = collect($order->orderItems)->first(function ($item) {
                         $type = strtolower((string) ($item->product?->type ?? ''));
                         return in_array($type, ['deck', 'deck-card', 'poker-deck'])
                             || $item->customization_mode === 'deck';
@@ -302,13 +319,23 @@ class StripeGatewayService
                 'notes'  => 'Awaiting Stripe payment',
             ]);
 
-            $stripeItems = array_map(function ($item) {
-                return [
+            $stripeItems = [];
+
+            foreach ($validatedItems as $item) {
+                $stripeItems[] = [
                     'name'  => $item['name'],
                     'qty'   => $item['qty'],
-                    'price' => round($item['price'] * 100),
+                    'price' => round($item['base_price'] * 100),
                 ];
-            }, $validatedItems);
+
+                if (!empty($item['has_joker']) && !empty($item['joker_addon'])) {
+                    $stripeItems[] = [
+                        'name'  => 'Joker Add-on',
+                        'qty'   => $item['qty'],
+                        'price' => round($item['joker_addon'] * 100),
+                    ];
+                }
+            }
 
 
             $gateway = PaymentGatewayFactory::make('stripe');
@@ -331,7 +358,7 @@ class StripeGatewayService
                     'country'    => $request->country,
                     'zipcode'    => $request->zipcode,
                 ],
-                'expires_at' => now()->addHour(1)->timestamp,
+                'expires_at' => now()->addHours(1)->timestamp,
                 'after_expiration' => [
                     'recovery' => ['enabled' => true],
                 ],
@@ -403,6 +430,8 @@ class StripeGatewayService
                     'product_id' => $item['product_id'],
                     'quantity'   => $item['qty'],
                     'price'      => $item['price'],
+                    'has_joker'  => !empty($item['has_joker']),
+                    'addon_amount' => round($item['joker_addon'] ?? 0.0, 2),
                 ]);
 
                 $cardSaveResult = $this->storeOrderItemCards($orderItem, $item['FinalProduct'] ?? [], $item['customization_mode'] ?? null);

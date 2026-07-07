@@ -1,88 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
+    <title>Momento</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forbidden Area</title>
-    <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: radial-gradient(circle at center, #0f0c29, #302b63, #24243e);
-            color: #ff0000;
-            font-family: 'Anton', sans-serif;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            height: 100%;
+            font-family: 'DM Sans', sans-serif;
+            background: #1A1209;
+            background-image:
+                radial-gradient(ellipse at 30% 60%, rgba(201,168,76,0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(201,168,76,0.05) 0%, transparent 40%);
+            color: #F5EFE0;
             display: flex;
-            justify-content: center;
             align-items: center;
-            height: 100vh;
+            justify-content: center;
+            text-align: center;
             overflow: hidden;
         }
-
-        .container {
-            text-align: center;
-            animation: pulse 2s infinite;
+        .wrap {
+            padding: 2rem;
+            max-width: 480px;
         }
-
-        h1 {
-            font-size: 6rem;
-            text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000, 0 0 60px #ff0000;
-            margin: 0;
+        .logo {
+            font-family: 'Playfair Display', serif;
+            font-weight: 900;
+            font-size: clamp(2.5rem, 6vw, 3.5rem);
+            color: #C9A84C;
+            letter-spacing: 0.02em;
+            margin-bottom: 1.25rem;
         }
-
-        p {
-            font-size: 1.5rem;
-            color: #fff;
-            margin-top: 20px;
-            text-shadow: 0 0 10px #000;
+        .logo span { color: rgba(201,168,76,0.4); }
+        .divider {
+            width: 48px;
+            height: 2px;
+            background: linear-gradient(90deg, #C9A84C, transparent);
+            margin: 0 auto 1.75rem;
         }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                transform: scale(1);
-            }
-
-            50% {
-                transform: scale(1.05);
-            }
+        .message {
+            font-size: 1rem;
+            font-weight: 300;
+            color: rgba(245,239,224,0.55);
+            line-height: 1.7;
         }
-
-        /* Optional dramatic background animation */
-        .background {
-            position: absolute;
-            width: 200%;
-            height: 200%;
-            background: repeating-radial-gradient(circle, rgba(255, 0, 0, 0.05) 0 2px, transparent 2px 4px);
-            animation: rotate 10s linear infinite;
-            z-index: 0;
-        }
-
-        @keyframes rotate {
-            from {
-                transform: rotate(0deg);
-            }
-
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        .container {
-            position: relative;
-            z-index: 1;
+        .footnote {
+            margin-top: 3rem;
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(245,239,224,0.2);
         }
     </style>
 </head>
-
 <body>
-    <div class="background"></div>
-    <div class="container">
-        <h1>FORBIDDEN AREA</h1>
-        <p>Proceed at your own risk! Your system can be hacked</p>
+    <div class="wrap">
+        <div class="logo">Momento<span>.</span></div>
+        <div class="divider"></div>
+        <p class="message">There's nothing for you to see here.<br>This space is reserved.</p>
     </div>
 </body>
-
 </html>

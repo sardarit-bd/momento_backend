@@ -289,8 +289,31 @@ class TGCService
         return $this->sessionManager->getSessionId();
     }
 
+    public function getQueueStatus(): array
+    {
+        return $this->request('GET', '/status/queue', []);
+    }
+
     private function buildUrl(string $path): string
     {
         return rtrim((string) config('services.tgc.base_url'), '/').'/'.ltrim($path, '/');
+    }
+
+    public function listWebhooks(): array
+    {
+        return $this->request('GET', '/webhook', [
+            'owner_id' => $this->sessionManager->getUserId(),
+        ]);
+    }
+
+    public function subscribeWebhook(string $event, string $callbackUri): array
+    {
+        return $this->request('POST', '/webhook', [
+            'owner_class' => 'User',
+            'owner_id'    => $this->sessionManager->getUserId(),
+            'event'       => $event,
+            'callback_uri'=> $callbackUri,
+            'api_key_id'  => config('services.tgc.api_key_id'),
+        ]);
     }
 }

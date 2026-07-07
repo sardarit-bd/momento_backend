@@ -13,6 +13,8 @@ class OrderItem extends Model
         'product_id',
         'quantity',
         'price',
+        'addon_amount',
+        'has_joker',
         'customization_mode',
         'card_design_count',
         'customization_images',
@@ -22,6 +24,8 @@ class OrderItem extends Model
 
     protected $casts = [
         'price'                => 'decimal:2',
+        'addon_amount'         => 'decimal:2',
+        'has_joker'            => 'boolean',
         'card_design_count'    => 'integer',
         'customization_images' => 'array',
     ];

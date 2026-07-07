@@ -16,6 +16,9 @@ use App\Http\Controllers\Api\Admin\SecretKeyController;
 use App\Http\Controllers\PaymentGateway\StripeController;
 use App\Http\Controllers\PaymentGateway\WebhookController;
 use App\Http\Controllers\Admin\AdminOrderPaymentController;
+use App\Http\Controllers\Api\TradingCardPackageController;
+use App\Http\Controllers\Api\CartPricingController;
+use App\Http\Controllers\TGC\TGCWebhookController;
 
 // Public routes
 Route::post('register', [AuthController::class, 'register']);
@@ -119,6 +122,9 @@ Route::apiResource('payments', PaymentController::class);
 
 Route::post('subscribers', [SubscriberController::class, 'store']);
 
+Route::get('/trading-card/packages', [TradingCardPackageController::class, 'index']);
+Route::post('/cart/price', [CartPricingController::class, 'calculate']);
+
 
 
 //=============================================================
@@ -153,3 +159,5 @@ Route::get('debug/shop/{slug}', function ($slug) {
         'base_cards_count'  => $product?->base_cards?->count(),
     ]);
 });
+
+Route::post('/webhooks/tgc/receipt-shipped', [TGCWebhookController::class, 'handle']);

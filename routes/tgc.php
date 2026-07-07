@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\TGC\FileController;
 use App\Http\Controllers\Api\TGC\FolderController;
 use App\Http\Controllers\Api\TGC\GameController;
 use App\Http\Controllers\Api\TGC\ReceiptController;
+use App\Http\Controllers\Api\TGC\StatusController;
 
 Route::middleware('auth:api')->prefix('tgc')->group(function (): void {
     Route::post('/games', [GameController::class, 'store']);
@@ -36,4 +37,7 @@ Route::middleware('auth:api')->prefix('tgc')->group(function (): void {
 
     Route::get('/receipts/{receiptId}', [ReceiptController::class, 'show']);
     Route::get('/addresses/{addressId}', [AddressController::class, 'show']);
+
+    Route::get('/status/queue', [StatusController::class, 'queue']);
+    Route::get('/carts/{cartId}/estimate', [StatusController::class, 'cartEstimate']);
 });

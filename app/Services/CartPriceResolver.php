@@ -7,20 +7,10 @@ use App\Models\TradingCardPackage;
 
 /**
  * Single source of truth for cart line pricing.
- *
- * IMPORTANT: This is the ONLY place that should decide what a cart line
- * costs. The frontend may send a price for display purposes, but it must
- * NEVER be trusted here — always re-derive from product_id / package_slug
- * against the database. Use this same resolver both for the "price my
- * cart" preview endpoint AND for actually creating the checkout session,
- * so the number shown to the user and the number they're charged can
- * never drift apart.
  */
 class CartPriceResolver
 {
-    // TODO: move to config/cart.php if tax varies by region later
     const TAX_RATE = 0.08;
-    // TODO: promote to a product/config-backed value if this ever needs to vary.
     const JOKER_ADDON_PRICE = 7.00;
 
     /**

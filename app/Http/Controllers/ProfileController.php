@@ -44,8 +44,8 @@ class ProfileController extends Controller
         $validator = Validator::make($request->all(), [
             'name'     => 'sometimes|string|max:255',
             'email'    => 'sometimes|email|unique:users,email,' . $user->id,
-            'phone'    => 'sometimes|string|max:20',
-            'address'  => 'sometimes|string|max:255',
+            'phone'    => 'sometimes|nullable|string|max:20',
+            'address'  => 'sometimes|nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -57,7 +57,6 @@ class ProfileController extends Controller
             ], 422);
         }
 
-        // শুধুমাত্র allowed fields update হবে
         $allowedFields = $request->only(['name', 'email', 'phone', 'address']);
         $user->update($allowedFields);
 

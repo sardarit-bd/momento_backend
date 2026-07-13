@@ -10,17 +10,18 @@ class SubscriberController extends Controller
 {
     public function index()
     {
-        $users = User::all()->map(function ($item) {
-            $item->type = 'user';
+        $users = User::select('id', 'name', 'email', 'role', 'phone', 'address', 'avatar', 'created_at')
+        ->get()
+        ->map(function ($item) {
+            $item->type = strtolower($item->role);
             return $item;
         });
 
         $subscribers = Subscriber::all()->map(function ($item) {
-            $item->type = 'subscriber';
+            $item->type = 'Subscriber';
             return $item;
         });
 
-        // Merge both collections
         $all = $users->merge($subscribers);
 
         return response()->json([

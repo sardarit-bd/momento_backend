@@ -5,13 +5,13 @@ namespace App\Jobs\TGC;
 use App\DTOs\TGC\AddToCartDTO;
 use App\DTOs\TGC\CreateAddressDTO;
 use App\DTOs\TGC\CreateCardFromFaceDTO;
-use App\DTOs\TGC\CreateDeckDTO;
-use App\DTOs\TGC\CreateFolderDTO;
 use App\DTOs\TGC\CreateGameDTO;
 use App\DTOs\TGC\CreateTuckBoxDTO;
 use App\DTOs\TGC\UploadFolderFileDTO;
 use App\Models\Order;
 use App\Models\OrderItemCard;
+use App\Services\TGC\CardMergeService;
+use App\Services\TGC\PhotoPortraitBoxCompositeService;
 use App\Services\TGC\TGCService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -20,10 +20,19 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
-use Throwable;
+use Illuminate\Support\Str;
 use Log;
+use Throwable;
 
-class PublishDeckJob implements ShouldQueue
+/**
+ * Publishes a Photo Portrait order to The Game Crafter:
+ *  - uploads each distinct photo card as a deck face (1 copy each, since every
+ *    photo card is a unique portrait),
+ *  - regenerates the photo portrait box from the user's source photos + drag/zoom
+ *    positions (or falls back to the pre-composited tuckbox blob),
+ *  - creates the TGC tuckbox, cart, address and pays with shop credit.
+ */
+class PublishPhotoPortraitJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -31,172 +40,134 @@ class PublishDeckJob implements ShouldQueue
     public int $timeout = 600;
     public int $backoff = 60;
 
-    // ── Only store the order ID in the queue payload. ─────────────────────
-    // Never serialize Eloquent models or blob data into queue jobs — blobs
-    // can be megabytes and hidden fields get stripped by SerializesModels.
-    // Everything is loaded fresh inside handle() directly from the DB.
     public function __construct(
         private readonly int $orderId,
     ) {}
 
     public function handle(TGCService $tgc): void
     {
-        $jobId = (string) \Illuminate\Support\Str::uuid();
-
-        $this->setStatus($jobId, 'running', 'Loading order data...');
-
-        // ── Load order with all required relations ─────────────────────────
-        // Load cards directly via the model to bypass any hidden-field
-        // stripping that would occur if we relied on serialized models.
         try {
             $order = Order::with([
                 'orderItems.product',
+                'orderItems.cards',
                 'shippingInformation',
             ])->findOrFail($this->orderId);
-
-            // Load cards fresh from DB with blobs — never rely on eager-loaded
-            // hidden fields from a serialized model instance.
-            $orderItemIds = $order->orderItems->pluck('id');
-
-            $allCards = OrderItemCard::whereIn('order_item_id', $orderItemIds)
-                ->orderBy('position')
-                ->get();
-
-            if ($allCards->isEmpty()) {
-                throw new \RuntimeException(
-                    "No cards found in order_item_cards for order {$this->orderId}. " .
-                    "Card blobs were never saved — check storeOrderItemCards upstream."
-                );
-            }
-
         } catch (Throwable $e) {
-            Log::error('Order load failed', [
+            Log::error('PublishPhotoPortraitJob failed to load order', [
                 'order_id' => $this->orderId,
                 'error'    => $e->getMessage(),
-                'trace'    => $e->getTraceAsString(),
             ]);
-            $this->setStatus($jobId, 'failed', 'Order load failed: ' . $e->getMessage());
             return;
         }
 
-        // ── Validate shipping ──────────────────────────────────────────────
-        $shipping = $order->shippingInformation;
-        if (!$shipping) {
-            Log::error('No shipping information found', ['order_id' => $this->orderId]);
-            $this->setStatus($jobId, 'failed', 'Shipping information missing for order.');
-            return;
-        }
-
+        $jobId    = (string) Str::uuid();
         $username = $order->name . '-' . time();
+
+        $this->setStatus($jobId, 'running', 'Starting TGC photo portrait publish...');
+
+        // ── Locate the photo portrait order item ────────────────────────────
+        $photoItem = $order->orderItems->first(function ($item) {
+            $type = strtolower((string) optional($item->product)->type);
+            return $type === 'photo' || $item->customization_mode === 'photo';
+        });
+
+        if (!$photoItem) {
+            Log::warning('PublishPhotoPortraitJob: no photo item found', ['order_id' => $this->orderId]);
+            $this->setStatus($jobId, 'completed', 'No photo portrait item in this order; nothing to publish.');
+            return;
+        }
 
         // ── Step 1: Create Game ────────────────────────────────────────────
         try {
-            $this->setStatus($jobId, 'running', 'Creating TGC game...');
-
             $game   = $tgc->createGame(new CreateGameDTO(name: $username));
             $gameId = data_get($game, 'result.id')
-                ?? throw new \RuntimeException('TGC createGame: no result.id in response. Response: ' . json_encode($game));
+                ?? throw new \RuntimeException('TGC game creation failed: no id');
             $skuId  = data_get($game, 'result.sku_id')
-                ?? throw new \RuntimeException('TGC createGame: no result.sku_id in response. Response: ' . json_encode($game));
-
+                ?? throw new \RuntimeException('TGC game creation failed: no sku_id');
             $this->setStatus($jobId, 'running', 'Game created.');
-
         } catch (Throwable $e) {
-            Log::error('Game creation failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            Log::error('Game creation failed', ['error' => $e->getMessage()]);
             $this->setStatus($jobId, 'failed', 'Game creation failed: ' . $e->getMessage());
             return;
         }
 
         // ── Step 2: Create Folder ──────────────────────────────────────────
         try {
-            $this->setStatus($jobId, 'running', 'Creating folder...');
-
-            $folder   = $tgc->createFolder(new CreateFolderDTO(name: $username . '-folder'));
+            $folder   = $tgc->createFolder(new \App\DTOs\TGC\CreateFolderDTO(name: $username . '-folder'));
             $folderId = data_get($folder, 'result.id')
-                ?? throw new \RuntimeException('TGC createFolder: no result.id. Response: ' . json_encode($folder));
-
-          
+                ?? throw new \RuntimeException('TGC folder creation failed: no id');
             $this->setStatus($jobId, 'running', 'Folder created.');
-
         } catch (Throwable $e) {
-            Log::error('Folder creation failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             $this->setStatus($jobId, 'failed', 'Folder creation failed: ' . $e->getMessage());
             return;
         }
 
         // ── Step 3: Create Deck ────────────────────────────────────────────
         try {
-            $this->setStatus($jobId, 'running', 'Creating deck...');
-
-            $deck   = $tgc->createDeck(new CreateDeckDTO(
+            $deck   = $tgc->createDeck(new \App\DTOs\TGC\CreateDeckDTO(
                 gameId:         $gameId,
-                name:           $username . '-deck',
+                name:           $username . '-photo',
                 identity:       'PokerDeck',
                 hasProofedBack: true,
                 backId:         'A5466D20-54D0-11F1-86E8-959B4373131A',
             ));
             $deckId = data_get($deck, 'result.id')
-                ?? throw new \RuntimeException('TGC createDeck: no result.id. Response: ' . json_encode($deck));
-
+                ?? throw new \RuntimeException('TGC deck creation failed: no id');
             $this->setStatus($jobId, 'running', 'Deck created.');
-
         } catch (Throwable $e) {
-            Log::error('Deck creation failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             $this->setStatus($jobId, 'failed', 'Deck creation failed: ' . $e->getMessage());
             return;
         }
 
-        // ── Step 4: Build & upload tuckbox image ───────────────────────────
-        // The tuckbox blob is stored on order_items.tuckbox_image_blob.
-        // Grab it from the first deck order item.
+        // ── Step 4: Build & upload photo portrait box ──────────────────────
         try {
-            $this->setStatus($jobId, 'running', 'Uploading tuckbox image...');
+            $this->setStatus($jobId, 'running', 'Compositing photo portrait box...');
 
-            $deckItem = $order->orderItems->first(function ($item) {
-                $type = strtolower((string) optional($item->product)->type);
-                return $type === 'deck' || $item->customization_mode === 'deck';
-            });
+            $storedBoxImages = $photoItem->photo_box_images ?? null;
+            $fallbackBlob     = $photoItem->tuckbox_image_blob ?? null;
 
-            if (!$deckItem || empty($deckItem->tuckbox_image_blob)) {
-                throw new \RuntimeException(
-                    "No tuckbox_image_blob found on order item. " .
-                    "Item ID: " . ($deckItem?->id ?? 'none') . ". " .
-                    "Check that the frontend is saving the tuckbox blob to order_items."
-                );
+            $compositeBlob = null;
+            if (!empty($storedBoxImages) && is_array($storedBoxImages)) {
+                $compositor    = app(PhotoPortraitBoxCompositeService::class);
+                $compositeBlob = $compositor->composite($storedBoxImages, 2325, 1950, $fallbackBlob);
+            } elseif (!empty($fallbackBlob)) {
+                $compositeBlob = $fallbackBlob;
             }
 
-            $tuckboxBlob = $deckItem->tuckbox_image_blob;
-            // Decode if stored as base64 data URI
-            if (str_starts_with($tuckboxBlob, 'data:')) {
-                $tuckboxBlob = base64_decode(explode(',', $tuckboxBlob, 2)[1]);
+            if (empty($compositeBlob)) {
+                throw new \RuntimeException('No photo portrait box image available (no positions and no tuckbox blob).');
             }
 
-            $tuckboxTempPath = 'temp/' . $jobId . '/tuckbox_composite.png';
-            Storage::disk('local')->put($tuckboxTempPath, $tuckboxBlob);
-            $absoluteBoxPath = Storage::disk('local')->path($tuckboxTempPath);
+            if (str_starts_with($compositeBlob, 'data:')) {
+                $compositeBlob = base64_decode(explode(',', $compositeBlob, 2)[1]);
+            }
+
+            $boxTempPath = 'temp/' . $jobId . '/photo_box.png';
+            Storage::disk('local')->put($boxTempPath, $compositeBlob);
+            $absoluteBoxPath = Storage::disk('local')->path($boxTempPath);
 
             $boxFileResponse = $tgc->uploadFolderFile(new UploadFolderFileDTO(
                 name:       'tuckbox-outside',
                 folderId:   $folderId,
                 filePath:   $absoluteBoxPath,
-                fileName:   'tuckbox_composite.png',
+                fileName:   'photo_box_composite.png',
                 mimeType:   'image/png',
                 hasProofed: true,
             ));
 
             $boxFileId = data_get($boxFileResponse, 'result.id')
-                ?? throw new \RuntimeException('No file ID returned for tuckbox. Response: ' . json_encode($boxFileResponse));
+                ?? throw new \RuntimeException('No file ID for photo box');
 
-            $this->setStatus($jobId, 'running', 'Tuckbox image uploaded.');
+            $this->setStatus($jobId, 'running', 'Photo box uploaded.');
 
         } catch (Throwable $e) {
-            Log::error('Tuckbox upload failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            $this->setStatus($jobId, 'failed', 'Tuckbox upload failed: ' . $e->getMessage());
+            $this->setStatus($jobId, 'failed', 'Photo box failed: ' . $e->getMessage());
+            Log::error('Photo box failed', ['error' => $e->getMessage()]);
             $this->cleanup($jobId);
             return;
         }
 
-        // ── Step 5: Create TuckBox with the uploaded image ─────────────────
+        // ── Step 5: Create TuckBox ─────────────────────────────────────────
         try {
             $tuckbox   = $tgc->createTuckBox(new CreateTuckBoxDTO(
                 name:              $username . '-box',
@@ -205,24 +176,26 @@ class PublishDeckJob implements ShouldQueue
                 hasProofedOutside: true,
             ));
             $tuckboxId = data_get($tuckbox, 'result.id')
-                ?? throw new \RuntimeException('TGC createTuckBox: no result.id. Response: ' . json_encode($tuckbox));
-
+                ?? throw new \RuntimeException('TGC tuckbox creation failed: no id');
             $this->setStatus($jobId, 'running', 'TuckBox created.');
-
         } catch (Throwable $e) {
-            Log::error('TuckBox creation failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             $this->setStatus($jobId, 'failed', 'TuckBox creation failed: ' . $e->getMessage());
-            $this->cleanup($jobId);
             return;
         }
 
-        // ── Step 6: Upload 54 cards ────────────────────────────────────────
+        // ── Step 6: Build the full 54-card deck, replacing customized slots ──
+        // Mirrors PublishDeckJob: the photo portrait deck is a standard 54-card
+        // Poker deck. The user's photo cards (each carrying a TGC slot_name such
+        // as Clubs_Face_King) replace the matching default slots; every other
+        // slot is filled with the default template card so the full deck of 54
+        // is always sent to The Game Crafter.
         try {
-            $this->setStatus($jobId, 'running', 'Preparing cards...');
+            $this->setStatus($jobId, 'running', 'Preparing photo cards...');
 
-            // Build a lookup: slot_name => OrderItemCard (deck cards only)
-            $cardsBySlot = $allCards
-                ->where('card_type', 'deck')
+            // Build a lookup: slot_name => OrderItemCard (photo cards only)
+            $cardsBySlot = $photoItem->cards()
+                ->whereNotNull('image_blob')
+                ->get()
                 ->keyBy('slot_name');
 
             $deckOrder = [
@@ -246,16 +219,13 @@ class PublishDeckJob implements ShouldQueue
             $tempDir   = 'temp/' . $jobId;
             $cardPaths = [];
 
-            // Fail loudly (instead of silently) when a customized deck card has a
-            // slot_name that isn't present in $deckOrder. Without this, such a card
-            // would silently fall back to the default template and the bug would be
-            // invisible until the difference becomes noticeable.
+            // Warn (don't silently drop) when a customized photo card has a
+            // slot_name that isn't part of the standard 54-card deck.
             $knownSlots = array_flip($deckOrder);
-            foreach ($allCards->where('card_type', 'deck') as $card) {
+            foreach ($cardsBySlot as $card) {
                 if (!empty($card->slot_name)
-                    && !isset($knownSlots[$card->slot_name])
-                    && !empty($card->image_blob)) {
-                    Log::warning('PublishDeckJob: customized deck card has an unrecognised slot_name and will be silently defaulted', [
+                    && !isset($knownSlots[$card->slot_name])) {
+                    Log::warning('PublishPhotoPortraitJob: photo card has an unrecognised slot_name and will be skipped', [
                         'order_id'           => $this->orderId,
                         'order_item_card_id' => $card->id,
                         'slot_name'          => $card->slot_name,
@@ -268,21 +238,15 @@ class PublishDeckJob implements ShouldQueue
                 $filename   = $slotName . '.png';
                 $targetPath = $tempDir . '/' . $filename;
 
-                if (isset($cardsBySlot[$slotName])) {
-                    $card = $cardsBySlot[$slotName];
-
-                    if (empty($card->image_blob)) {
-                        $this->writeDefaultCard($slotName, $filename, $targetPath);
-                    } else {
-                        $blob = $card->image_blob;
-                        if (str_starts_with($blob, 'data:')) {
-                            $blob = base64_decode(explode(',', $blob, 2)[1]);
-                        }
-                        $resized = $this->resizeImageTo825x1125($blob);
-                        Storage::disk('local')->put($targetPath, $resized);
-
+                if (isset($cardsBySlot[$slotName]) && !empty($cardsBySlot[$slotName]->image_blob)) {
+                    $blob = $cardsBySlot[$slotName]->image_blob;
+                    if (str_starts_with($blob, 'data:')) {
+                        $blob = base64_decode(explode(',', $blob, 2)[1]);
                     }
+                    $resized = $this->resizeImageTo825x1125($blob);
+                    Storage::disk('local')->put($targetPath, $resized);
                 } else {
+                    // No customized card for this slot → use the default template.
                     $this->writeDefaultCard($slotName, $filename, $targetPath);
                 }
 
@@ -326,7 +290,7 @@ class PublishDeckJob implements ShouldQueue
             }
 
         } catch (Throwable $e) {
-            Log::error('Card upload failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            Log::error('Photo card upload failed', ['error' => $e->getMessage()]);
             $this->setStatus($jobId, 'failed', 'Card upload failed: ' . $e->getMessage());
             $this->cleanup($jobId);
             return;
@@ -335,56 +299,49 @@ class PublishDeckJob implements ShouldQueue
         // ── Step 7: Create Cart ────────────────────────────────────────────
         try {
             $this->setStatus($jobId, 'running', 'Creating cart...');
-
             $cartResponse = $tgc->createCart();
             $cartId       = data_get($cartResponse, 'result.id')
-                ?? throw new \RuntimeException('No cart ID from TGC. Response: ' . json_encode($cartResponse));
-
+                ?? throw new \RuntimeException('No cart ID from TGC');
             $this->setStatus($jobId, 'running', 'Cart created.');
-
         } catch (Throwable $e) {
-            Log::error('Cart creation failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             $this->setStatus($jobId, 'failed', 'Cart creation failed: ' . $e->getMessage());
             $this->cleanup($jobId);
             return;
         }
 
-        // ── Step 8: Create shipping address ───────────────────────────────
+        // ── Step 8: Create shipping address ────────────────────────────────
         try {
-            $this->setStatus($jobId, 'running', 'Creating shipping address...');
+            $shipping = $order->shippingInformation;
+            if (!$shipping) {
+                throw new \RuntimeException('Shipping information not found');
+            }
 
             $addressResponse = $tgc->createAddress(CreateAddressDTO::make(
-                name:        trim($shipping->first_name . ' ' . $shipping->last_name),
+                name:        $shipping->first_name . ' ' . $shipping->last_name,
                 address1:    $shipping->address1,
-                address2:    $shipping->address2 ?? null,
                 city:        $shipping->city,
                 state:       $shipping->state    ?? 'N/A',
                 postalCode:  $shipping->zipcode,
                 country:     $shipping->country  ?? 'US',
                 phoneNumber: $shipping->phone,
                 company:     $shipping->company  ?? null,
+                address2:    $shipping->address2 ?? null,
             ));
 
             $addressId = data_get($addressResponse, 'result.id')
-                ?? throw new \RuntimeException('No address ID from TGC. Response: ' . json_encode($addressResponse));
-
+                ?? throw new \RuntimeException('No address ID returned');
             $this->setStatus($jobId, 'running', 'Shipping address created.');
-
         } catch (Throwable $e) {
-            Log::error('Address creation failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             $this->setStatus($jobId, 'failed', 'Address creation failed: ' . $e->getMessage());
             $this->cleanup($jobId);
             return;
         }
 
-        // ── Step 9: Attach address to cart ────────────────────────────────
+        // ── Step 9: Attach address to cart ─────────────────────────────────
         try {
             $tgc->updateCart($cartId, ['shipping_address_id' => $addressId]);
-
             $this->setStatus($jobId, 'running', 'Address attached to cart.');
-
         } catch (Throwable $e) {
-            Log::error('Cart address update failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             $this->setStatus($jobId, 'failed', 'Cart address update failed: ' . $e->getMessage());
             $this->cleanup($jobId);
             return;
@@ -397,30 +354,24 @@ class PublishDeckJob implements ShouldQueue
                 skuId:    $skuId,
                 quantity: 1,
             ));
-
             $this->setStatus($jobId, 'running', 'SKU added to cart.');
-
         } catch (Throwable $e) {
-            Log::error('Add SKU to cart failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            $this->setStatus($jobId, 'failed', 'Cart SKU step failed: ' . $e->getMessage());
+            $this->setStatus($jobId, 'failed', 'Add SKU failed: ' . $e->getMessage());
             $this->cleanup($jobId);
             return;
         }
 
-        // ── Step 11: Attach user/session to cart ───────────────────────────
+        // ── Step 11: Attach user to cart ───────────────────────────────────
         try {
             $tgc->attachUserToCart($cartId);
-
             $this->setStatus($jobId, 'running', 'Session attached to cart.');
-
         } catch (Throwable $e) {
-            Log::error('Attach user to cart failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            $this->setStatus($jobId, 'failed', 'Attach user to cart failed: ' . $e->getMessage());
+            $this->setStatus($jobId, 'failed', 'Attach user failed: ' . $e->getMessage());
             $this->cleanup($jobId);
             return;
         }
 
-        // ── Step 12: Validate shop credit ─────────────────────────────────
+        // ── Step 12: Validate shop credit ──────────────────────────────────
         try {
             $cartDetails = $tgc->getCart($cartId);
             $grandTotal  = (float) data_get($cartDetails, 'result.grand_total', 0);
@@ -431,87 +382,52 @@ class PublishDeckJob implements ShouldQueue
                     "Insufficient shop credit: have \${$shopCredit}, need \${$grandTotal}"
                 );
             }
-
             $this->setStatus($jobId, 'running', 'Shop credit validated.');
-
         } catch (Throwable $e) {
-            Log::error('Shop credit validation failed', ['error' => $e->getMessage()]);
             $this->setStatus($jobId, 'failed', 'Shop credit validation failed: ' . $e->getMessage());
             $this->cleanup($jobId);
             return;
         }
 
-        // ── Step 13: Pay with shop credit ─────────────────────────────────
+        // ── Step 13: Pay with shop credit ──────────────────────────────────
         try {
-            $this->setStatus($jobId, 'running', 'Processing payment...');
-
             $paymentResponse = $tgc->payWithShopCredit($cartId);
             $receiptId       = data_get($paymentResponse, 'result.id')
-                ?? throw new \RuntimeException('No receipt ID from TGC. Response: ' . json_encode($paymentResponse));
-
+                ?? throw new \RuntimeException('No receipt ID from payment');
         } catch (Throwable $e) {
-            Log::error('Payment failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             $this->setStatus($jobId, 'failed', 'Payment failed: ' . $e->getMessage());
             $this->cleanup($jobId);
             return;
         }
 
-        // ── Step 14: Fetch receipt & finalise ─────────────────────────────
+        // ── Step 14: Fetch receipt ─────────────────────────────────────────
         try {
             $tgc->fetchReceipt($receiptId);
-
             Order::where('id', $this->orderId)->update([
                 'tgc_receipt_id' => $receiptId,
             ]);
 
-            $this->setStatus($jobId, 'completed', 'Order placed and paid successfully.', [
+            $this->setStatus($jobId, 'completed', 'Photo portrait order placed successfully.', [
                 'receipt_id' => $receiptId,
                 'cart_id'    => $cartId,
-                'uploaded'   => $total,
-                'total'      => $total,
+                'uploaded'   => $total ?? 0,
+                'total'      => $total ?? 0,
             ]);
-
         } catch (Throwable $e) {
-            // Non-fatal — payment already succeeded
-            Log::error('Receipt fetch failed (non-fatal, payment already succeeded)', [
-                'error'      => $e->getMessage(),
-                'receipt_id' => $receiptId ?? null,
-            ]);
-            Order::where('id', $this->orderId)->update([
-                'tgc_receipt_id' => $receiptId ?? null,
-            ]);
-            $this->setStatus($jobId, 'completed', 'Order placed. Receipt fetch failed (non-fatal).', [
+            $this->setStatus($jobId, 'completed', 'Order placed. Receipt fetch failed.', [
                 'receipt_id' => $receiptId ?? null,
                 'cart_id'    => $cartId,
-                'uploaded'   => $total,
-                'total'      => $total,
             ]);
         }
 
         $this->cleanup($jobId);
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────
-
-    private function writeDefaultCard(string $slotName, string $filename, string $targetPath): void
-    {
-        $defaultPath = 'cards/' . $filename;
-
-        if (!Storage::disk('local')->exists($defaultPath)) {
-            throw new \RuntimeException(
-                "Default card missing: storage/app/cards/{$filename}. " .
-                "Slot: {$slotName}. Ensure all 54 default card PNGs exist."
-            );
-        }
-
-        Storage::disk('local')->copy($defaultPath, $targetPath);
-    }
-
     private function resizeImageTo825x1125(string $blob): string
     {
-        $src = @imagecreatefromstring($blob);
+        $src = imagecreatefromstring($blob);
         if (!$src) {
-            throw new \RuntimeException('Failed to create GD image from blob — invalid image data.');
+            throw new \RuntimeException('Failed to create image from blob');
         }
 
         $dst = imagecreatetruecolor(825, 1125);
@@ -527,32 +443,43 @@ class PublishDeckJob implements ShouldQueue
         return $resized;
     }
 
+    /**
+     * Copy the default template card for a given TGC slot into the temp dir.
+     * Identical to PublishDeckJob::writeDefaultCard so the photo portrait deck
+     * fills non-customized slots with the same standard 54-card artwork.
+     */
+    private function writeDefaultCard(string $slotName, string $filename, string $targetPath): void
+    {
+        $defaultPath = 'cards/' . $filename;
+
+        if (!Storage::disk('local')->exists($defaultPath)) {
+            throw new \RuntimeException(
+                "Default card missing: storage/app/cards/{$filename}. " .
+                "Slot: {$slotName}. Ensure all 54 default card PNGs exist."
+            );
+        }
+
+        Storage::disk('local')->copy($defaultPath, $targetPath);
+    }
+
     private function setStatus(string $jobId, string $status, string $message, array $extra = []): void
     {
         Cache::put("tgc_job:{$jobId}", array_merge([
             'status'     => $status,
             'message'    => $message,
             'job_id'     => $jobId,
-            'order_id'   => $this->orderId,
             'updated_at' => now()->toISOString(),
         ], $extra), now()->addHours(2));
     }
 
     private function cleanup(string $jobId): void
     {
-        try {
-            $tempDir = 'temp/' . $jobId;
-            if (Storage::disk('local')->exists($tempDir)) {
-                Storage::disk('local')->deleteDirectory($tempDir);
-            }
-        } catch (Throwable $e) {
-            Log::warning('Cleanup failed', ['error' => $e->getMessage()]);
-        }
+        app(CardMergeService::class)->cleanup('temp/' . $jobId);
     }
 
     public function failed(Throwable $e): void
     {
-        Log::error('PublishDeckJob FAILED — all retries exhausted', [
+        Log::error('PublishPhotoPortraitJob FAILED', [
             'order_id' => $this->orderId,
             'error'    => $e->getMessage(),
             'trace'    => $e->getTraceAsString(),

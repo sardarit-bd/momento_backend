@@ -123,13 +123,20 @@ class WebhookController extends Controller
             if ($order->is_customized) {
                 $order->loadMissing('orderItems.product');
 
-                // customization_mode only when the product type is missing.
+                // A genuine deck product is detected by product type first.
+                // Only fall back to customization_mode when the product type is
+                // unknown. A photo portrait item's mode auto-resolves to 'deck'
+                // (its cards carry ranks), so it must NOT be counted as a deck
+                // — otherwise an extra deck order would be published.
                 $hasDeck = $order->orderItems->contains(function ($i) {
                     $type = strtolower((string) optional($i->product)->type);
-                    if (in_array($type, ['deck', 'deck-card', 'poker-deck'])) {
-                        return true;
+                    if ($type !== '' && !in_array($type, ['deck', 'deck-card', 'poker-deck'])) {
+                        return false;
                     }
-                    return $i->customization_mode === 'deck';
+                    return $type !== 'photo'
+                        && $i->customization_mode !== 'photo'
+                        && (in_array($type, ['deck', 'deck-card', 'poker-deck'])
+                            || $i->customization_mode === 'deck');
                 });
 
                 $hasTrading = $order->orderItems->contains(function ($i) {
@@ -140,12 +147,24 @@ class WebhookController extends Controller
                     return $i->customization_mode === 'trading';
                 });
 
+                $hasPhoto = $order->orderItems->contains(function ($i) {
+                    $productType = strtolower((string) optional($i->product)->type);
+                    if ($productType !== '') {
+                        return $productType === 'photo';
+                    }
+                    return $i->customization_mode === 'photo';
+                });
+
                 if ($hasDeck) {
                     PublishDeckJob::dispatch($order->id);
                 }
 
                 if ($hasTrading) {
                     \App\Jobs\TGC\PublishTradingJob::dispatch($order->id);
+                }
+
+                if ($hasPhoto) {
+                    \App\Jobs\TGC\PublishPhotoPortraitJob::dispatch($order->id);
                 }
             }
 

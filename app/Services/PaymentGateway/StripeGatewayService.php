@@ -37,9 +37,12 @@ class StripeGatewayService
             'items.*.has_joker'  => 'sometimes|boolean',
             'items.*.price'      => 'nullable|numeric|min:0',
             'items.*.name'       => 'required|string',
-            'items.*.FinalPDF'     => 'nullable|array',
-            'items.*.FinalProduct' => 'nullable|array',
-            'tuckbox_characters'   => 'nullable|array',
+                'items.*.FinalPDF'     => 'nullable|array',
+                'items.*.FinalProduct' => 'nullable|array',
+                'tuckbox_characters'   => 'nullable|array',
+                'tuckbox_image'        => 'nullable|string',
+                'photo_box_images'     => 'nullable|array',
+                'photo_box_images.*'   => 'nullable|array',
             'tuckbox_characters.*' => 'nullable|string',
             'trading_box_pack_title'   => 'nullable|string|max:50',
             'tradingBoxPackTitle'      => 'nullable|string|max:50',
@@ -80,7 +83,10 @@ class StripeGatewayService
             }
 
             $pricedCart = $resolver->priceCart($pricingItems);
-            $trustedTotal = $pricedCart['subtotal'];
+            // Charge the order total INCLUDING tax. Using `subtotal` here (the
+            // per-line "Item total", excl. tax) undercharged the customer by
+            // the tax amount and left order.total tax-free.
+            $trustedTotal = $pricedCart['total'];
 
             foreach ($request->items as $index => $item) {
                 $product = Product::find($item['product_id']);
@@ -108,7 +114,7 @@ class StripeGatewayService
             }
 
             // Handle Stripe - Create order BEFORE redirect
-            return $this->createStripeOrder($request, $validatedItems, $trustedTotal);
+            return $this->createStripeOrder($request, $validatedItems, $trustedTotal, $pricedCart);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('Validation failed', ['errors' => $e->errors()]);
@@ -136,7 +142,7 @@ class StripeGatewayService
         }
     }
 
-    protected function createStripeOrder($request, $validatedItems, $trustedTotal)
+    protected function createStripeOrder($request, $validatedItems, $trustedTotal, array $pricedCart = [])
     {
         $validatedItems = array_map(function($item) {
             unset($item['character_image']);
@@ -207,17 +213,28 @@ class StripeGatewayService
                 );
 
                 $productType = strtolower($item['product_type'] ?? '');
-                if (in_array($productType, ['deck', 'deck-card', 'poker-deck']) || ($item['customization_mode'] ?? null) === 'deck') {
+                $isBoxItem = in_array($productType, ['deck', 'deck-card', 'poker-deck', 'photo'])
+                    || in_array($item['customization_mode'] ?? null, ['deck', 'photo']);
+
+                if ($isBoxItem) {
+                    $update = [];
                     if (!empty($request->tuckbox_image)) {
                         $tuckboxRaw = $request->tuckbox_image;
                         if (str_contains($tuckboxRaw, 'base64,')) {
                             $tuckboxRaw = explode('base64,', $tuckboxRaw)[1];
                         }
                         $tuckboxBlob = base64_decode($tuckboxRaw);
-                        $orderItem->update([
-                            'tuckbox_image_blob' => $tuckboxBlob,
-                            'tuckbox_image_mime' => 'image/png',
-                        ]);
+                        $update['tuckbox_image_blob'] = $tuckboxBlob;
+                        $update['tuckbox_image_mime'] = 'image/png';
+                    }
+                    // Photo portrait: also persist the source box photos with
+                    // their drag/zoom positions so the TGC job can regenerate
+                    // the box on the photo portrait template.
+                    if (($item['customization_mode'] ?? null) === 'photo' && !empty($request->photo_box_images)) {
+                        $update['photo_box_images'] = $request->photo_box_images;
+                    }
+                    if (!empty($update)) {
+                        $orderItem->update($update);
                     }
                 }
 
@@ -268,8 +285,15 @@ class StripeGatewayService
 
                     $deckItem = collect($order->orderItems)->first(function ($item) {
                         $type = strtolower((string) ($item->product?->type ?? ''));
+                        $mode = $item->customization_mode;
+                        // A photo portrait item's cards carry ranks so its mode
+                        // auto-resolves to 'deck'; exclude it so the deck
+                        // character composite never overwrites the photo box.
+                        if ($type === 'photo' || $mode === 'photo') {
+                            return false;
+                        }
                         return in_array($type, ['deck', 'deck-card', 'poker-deck'])
-                            || $item->customization_mode === 'deck';
+                            || $mode === 'deck';
                     });
 
                     if ($deckItem) {
@@ -335,6 +359,21 @@ class StripeGatewayService
                         'price' => round($item['joker_addon'] * 100),
                     ];
                 }
+            }
+
+            // The per-line items above sum to the pre-tax subtotal. Add an
+            // explicit tax line so the Stripe-hosted checkout total matches
+            // the order total (subtotal + tax) the customer saw on the page.
+            $taxCents = isset($pricedCart['tax'])
+                ? (int) round($pricedCart['tax'] * 100)
+                : (int) round(max(0, $trustedTotal - $this->sumStripeItems($stripeItems)) * 100);
+
+            if ($taxCents > 0) {
+                $stripeItems[] = [
+                    'name'  => 'Tax',
+                    'qty'   => 1,
+                    'price' => $taxCents,
+                ];
             }
 
 
@@ -533,6 +572,17 @@ class StripeGatewayService
                 $rank = null;
             }
 
+            // The frontend emits a single, slot-agnostic Joker ('rank' => 'joker')
+            // with no Joker_1/Joker_2 distinction (its slotName is null). Map it to
+            // a concrete physical slot so PublishDeckJob can match it; the other
+            // Joker slot then correctly keeps the default template. An explicit,
+            // valid slot from the frontend is always preserved.
+            $slotName = $entry['name'] ?? null;
+            if ($mode === 'deck' && strtolower((string) $rank) === 'joker'
+                && !in_array($slotName, ['Joker_1', 'Joker_2'], true)) {
+                $slotName = 'Joker_1';
+            }
+
             $characterImage = $entry['character_image'] ?? '';
             [$characterMime, $characterBlob] = $this->decodeBase64Image($characterImage);
 
@@ -541,7 +591,7 @@ class StripeGatewayService
                 'card_type'        => $mode,
                 'side'             => $side,
                 'rank'             => $rank,
-                'slot_name'        => $entry['name'] ?? null,
+                'slot_name'        => $slotName,
                 'position'         => $index + 1,
                 'image_blob'       => $blob,
                 'image_mime'       => $mime,
@@ -581,6 +631,20 @@ class StripeGatewayService
         }
 
         return [$mime ?? 'image/png', $decoded];
+    }
+
+    /**
+     * Sum the dollar value of the given Stripe line items (price already in
+     * cents, multiplied by qty) back into a dollar amount. Used as a fallback
+     * to derive the tax line when the resolver's tax total is unavailable.
+     */
+    private function sumStripeItems(array $stripeItems): float
+    {
+        $sum = 0;
+        foreach ($stripeItems as $item) {
+            $sum += ($item['price'] ?? 0) * ($item['qty'] ?? 1);
+        }
+        return $sum / 100;
     }
 
     private function detectCustomizationMode(array $entries, ?string $requestedMode = null): string

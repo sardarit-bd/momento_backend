@@ -97,7 +97,7 @@ class ProductController extends Controller
             }
 
             // Handle customizations
-            if (in_array(strtolower($product->type), ['customizable', 'trading'])) {
+            if (in_array(strtolower($product->type), ['customizable', 'trading', 'photo'])) {
                 $this->handleCustomizations($product, $request);
             }
 
@@ -135,7 +135,7 @@ class ProductController extends Controller
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'slug' => 'nullable|string|max:255|unique:products,slug',
-                'type' => 'required|in:simple,customizable,trading', 
+                'type' => 'required|in:simple,customizable,trading,photo', 
                 'category_id' => 'required|integer|exists:categories,id',
                 'price' => 'required|numeric|min:0',
                 'offer_price' => 'nullable|numeric|min:0|lt:price',
@@ -222,7 +222,7 @@ class ProductController extends Controller
                 ]);
             }
 
-            if (in_array(strtolower($product->type), ['customizable', 'trading'])) {
+            if (in_array(strtolower($product->type), ['customizable', 'trading', 'photo'])) {
                 $this->handleCustomizations($product, $request);
             }
 
@@ -529,7 +529,7 @@ class ProductController extends Controller
             }
 
             // Customizations
-            if (strtolower($product->type) === 'customizable') {
+            if (in_array(strtolower($product->type), ['customizable', 'trading', 'photo'])) {
                 $this->handleCustomizations($product, $request, true);
             }
 
@@ -590,7 +590,7 @@ class ProductController extends Controller
         $rules = [
             'name' => 'required|string|max:255',
             'slug' => 'nullable|string|unique:products,slug,' . ($productId ?? 'NULL') . ',id',
-            'type' => 'required|string|in:simple,customizable,trading,Simple,Customizable,Trading',
+            'type' => 'required|string|in:simple,customizable,trading,photo,Simple,Customizable,Trading,Photo',
             'price' => 'required|numeric|min:0',
             'status' => 'required|in:active,inactive',
             'offer_price' => 'nullable|numeric|min:0|lt:price',
@@ -602,7 +602,7 @@ class ProductController extends Controller
             'images.*' => 'required|string',
         ];
 
-        if (in_array($request->type, ['Customizable', 'Trading', 'customizable', 'trading'])) {
+        if (in_array($request->type, ['Customizable', 'Trading', 'customizable', 'trading', 'Photo', 'photo'])) {
             foreach ($this->customRelations as $field) {
                 $rules[$field] = 'sometimes|array';
                 $rules[$field . '.*'] = 'sometimes|string';

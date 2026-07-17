@@ -18,8 +18,9 @@ class OrderItem extends Model
         'customization_mode',
         'card_design_count',
         'customization_images',
-        'tuckbox_image_blob',  
-        'tuckbox_image_mime',  
+        'tuckbox_image_blob',
+        'tuckbox_image_mime',
+        'photo_box_images',
     ];
 
     protected $casts = [
@@ -28,6 +29,7 @@ class OrderItem extends Model
         'has_joker'            => 'boolean',
         'card_design_count'    => 'integer',
         'customization_images' => 'array',
+        'photo_box_images'     => 'array',
     ];
 
     protected $hidden = [

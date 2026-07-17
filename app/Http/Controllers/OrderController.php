@@ -259,14 +259,20 @@ class OrderController extends Controller
                 ]);
 
                 // Save tuckbox image if present
+                $tuckUpdate = [];
                 if (!empty($item['tuckbox_image'])) {
                     [$mime, $blob] = $this->decodeBase64Image($item['tuckbox_image']);
                     if ($blob !== null) {
-                        $orderItem->update([
-                            'tuckbox_image_blob' => $blob,
-                            'tuckbox_image_mime' => $mime ?? 'image/png',
-                        ]);
+                        $tuckUpdate['tuckbox_image_blob'] = $blob;
+                        $tuckUpdate['tuckbox_image_mime'] = $mime ?? 'image/png';
                     }
+                }
+                // Photo portrait: persist source box photos + positions
+                if (($item['customization_mode'] ?? null) === 'photo' && !empty($item['photo_box_images'])) {
+                    $tuckUpdate['photo_box_images'] = $item['photo_box_images'];
+                }
+                if (!empty($tuckUpdate)) {
+                    $orderItem->update($tuckUpdate);
                 }
 
                 $cardSaveResult = $this->storeOrderItemCards($orderItem, $item['FinalProduct'] ?? [], $item['customization_mode'] ?? null);
@@ -384,11 +390,23 @@ class OrderController extends Controller
                 $rank = null;
             }
 
+            // The frontend emits a single, slot-agnostic Joker ('rank' => 'joker')
+            // with no Joker_1/Joker_2 distinction (its slotName is null). Map it to
+            // a concrete physical slot so PublishDeckJob can match it; the other
+            // Joker slot then correctly keeps the default template. An explicit,
+            // valid slot from the frontend is always preserved.
+            $slotName = $entry['name'] ?? null;
+            if ($mode === 'deck' && strtolower((string) $rank) === 'joker'
+                && !in_array($slotName, ['Joker_1', 'Joker_2'], true)) {
+                $slotName = 'Joker_1';
+            }
+
             $orderItem->cards()->create([
                 'card_pair_key' => $isTrading ? ($entry['card_pair_key'] ?? $tradingGroupKey) : null,
                 'card_type' => $mode,
                 'side' => $side,
                 'rank' => $rank,
+                'slot_name' => $slotName,
                 'position' => $index + 1,
                 'image_blob' => $blob,
                 'image_mime' => $mime,

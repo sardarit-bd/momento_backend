@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\OrderPlaced;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Prunable;
@@ -80,6 +81,10 @@ class Order extends Model
     protected static function boot()
     {
         parent::boot();
+
+        static::created(function (self $order) {
+            event(new OrderPlaced($order));
+        });
 
         static::deleting(function ($order) {
             $order->orderItems()->delete();

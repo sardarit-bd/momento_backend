@@ -12,15 +12,21 @@ class TGCWebhookLog extends Model
         'tgc_webhook_event_id',
         'type',
         'event',
-        'signature_valid',
+        'tgc_receipt_id',
+        'dedupe_key',
+        'hmac_verified',
+        'matched_order_id',
+        'status',
         'payload',
+        'received_at',
         'processed_at',
         'error',
     ];
 
     protected $casts = [
         'payload' => 'array',
-        'signature_valid' => 'boolean',
+        'hmac_verified' => 'boolean',
+        'received_at' => 'datetime',
         'processed_at' => 'datetime',
     ];
 }

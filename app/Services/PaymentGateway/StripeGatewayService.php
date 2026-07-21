@@ -4,13 +4,13 @@ namespace App\Services\PaymentGateway;
 
 use App\Models\Product;
 use App\Models\ShippingInformation;
+use App\Services\CartPriceResolver;
+use App\Services\TGC\TradingBoxCompositeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use App\Services\CartPriceResolver;
-use App\Services\TGC\TradingBoxCompositeService;
 
 class StripeGatewayService
 {
@@ -20,34 +20,34 @@ class StripeGatewayService
     {
         $request->validate([
             'first_name' => 'required|string|max:255',
-            'last_name'  => 'required|string|max:255',
-            'email'      => 'required|email',
-            'phone'      => 'required|string|max:50',
-            'address1'   => 'required|string|max:500',
-            'address2'   => 'nullable|string|max:500',
-            'city'       => 'required|string|max:100',
-            'state'      => 'nullable|string|max:100',
-            'country'    => 'nullable|string|max:100',
-            'zipcode'    => 'required|string|max:20',
-            'gateway'    => 'required|string|in:stripe,cod,cash_on_delivery',
-            'items'      => 'required|array|min:1',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|email',
+            'phone' => 'required|string|max:50',
+            'address1' => 'required|string|max:500',
+            'address2' => 'nullable|string|max:500',
+            'city' => 'required|string|max:100',
+            'state' => 'nullable|string|max:100',
+            'country' => 'nullable|string|max:100',
+            'zipcode' => 'required|string|max:20',
+            'gateway' => 'required|string|in:stripe,cod,cash_on_delivery',
+            'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|integer',
-            'items.*.qty'        => 'required|integer|min:1',
+            'items.*.qty' => 'required|integer|min:1',
             'items.*.package_slug' => 'nullable|string',
-            'items.*.has_joker'  => 'sometimes|boolean',
-            'items.*.price'      => 'nullable|numeric|min:0',
-            'items.*.name'       => 'required|string',
-                'items.*.FinalPDF'     => 'nullable|array',
-                'items.*.FinalProduct' => 'nullable|array',
-                'tuckbox_characters'   => 'nullable|array',
-                'tuckbox_image'        => 'nullable|string',
-                'photo_box_images'     => 'nullable|array',
-                'photo_box_images.*'   => 'nullable|array',
+            'items.*.has_joker' => 'sometimes|boolean',
+            'items.*.price' => 'nullable|numeric|min:0',
+            'items.*.name' => 'required|string',
+            'items.*.FinalPDF' => 'nullable|array',
+            'items.*.FinalProduct' => 'nullable|array',
+            'tuckbox_characters' => 'nullable|array',
+            'tuckbox_image' => 'nullable|string',
+            'photo_box_images' => 'nullable|array',
+            'photo_box_images.*' => 'nullable|array',
             'tuckbox_characters.*' => 'nullable|string',
-            'trading_box_pack_title'   => 'nullable|string|max:50',
-            'tradingBoxPackTitle'      => 'nullable|string|max:50',
-            'trading_box_created_for'  => 'nullable|string|max:50',
-            'tradingBoxCreatedFor'     => 'nullable|string|max:50',
+            'trading_box_pack_title' => 'nullable|string|max:50',
+            'tradingBoxPackTitle' => 'nullable|string|max:50',
+            'trading_box_created_for' => 'nullable|string|max:50',
+            'tradingBoxCreatedFor' => 'nullable|string|max:50',
         ]);
 
         try {
@@ -59,7 +59,7 @@ class StripeGatewayService
             foreach ($request->items as $item) {
                 $product = Product::find($item['product_id']);
 
-                if (!$product) {
+                if (! $product) {
                     return response()->json([
                         'success' => false,
                         'message' => "Product with ID {$item['product_id']} not found",
@@ -78,7 +78,7 @@ class StripeGatewayService
                     'product_id' => $product->id,
                     'qty' => $quantity,
                     'package_slug' => $item['package_slug'] ?? null,
-                    'has_joker' => !empty($item['has_joker']),
+                    'has_joker' => ! empty($item['has_joker']),
                 ];
             }
 
@@ -93,18 +93,18 @@ class StripeGatewayService
                 $pricing = $resolver->resolveUnitPrice($pricingItems[$index]);
 
                 $validatedItems[] = [
-                    'product_id'         => $product->id,
-                    'name'               => $product->name,
-                    'product_type'       => $product->type ?? 'simple',
+                    'product_id' => $product->id,
+                    'name' => $product->name,
+                    'product_type' => $product->type ?? 'simple',
                     'customization_mode' => $item['customization_mode'] ?? null,
-                    'qty'                => (int) $item['qty'],
-                    'price'              => $pricing['unit_price'],
-                    'base_price'         => $pricing['base_price'],
-                    'joker_addon'        => $pricing['joker_addon'],
-                    'has_joker'          => !empty($item['has_joker']),
-                    'total'              => round($pricing['unit_price'] * (int) $item['qty'], 2),
-                    'FinalPDF'           => $item['FinalPDF'] ?? null,
-                    'FinalProduct'       => $item['FinalProduct'] ?? [],
+                    'qty' => (int) $item['qty'],
+                    'price' => $pricing['unit_price'],
+                    'base_price' => $pricing['base_price'],
+                    'joker_addon' => $pricing['joker_addon'],
+                    'has_joker' => ! empty($item['has_joker']),
+                    'total' => round($pricing['unit_price'] * (int) $item['qty'], 2),
+                    'FinalPDF' => $item['FinalPDF'] ?? null,
+                    'FinalProduct' => $item['FinalProduct'] ?? [],
                 ];
             }
 
@@ -122,30 +122,32 @@ class StripeGatewayService
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors'  => $e->errors(),
+                'errors' => $e->errors(),
             ], 422);
 
-        // StripeGatewayService.php — replace the outer catch block
+            // StripeGatewayService.php — replace the outer catch block
         } catch (\Exception $e) {
             Log::error('Checkout session creation failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'class' => get_class($e),               
-                'file'  => $e->getFile(),               
-                'line'  => $e->getLine(),               
+                'class' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create checkout session',
-                'error'   => 'Internal server error',  
+                'error' => 'Internal server error',
             ], 500);
         }
     }
 
     protected function createStripeOrder($request, $validatedItems, $trustedTotal, array $pricedCart = [])
     {
-        $validatedItems = array_map(function($item) {
+        $validatedItems = array_map(function ($item) {
             unset($item['character_image']);
+
             return $item;
         }, $validatedItems);
         DB::beginTransaction();
@@ -154,20 +156,20 @@ class StripeGatewayService
 
             $user = auth('api')->user();
             $order = \App\Models\Order::create([
-                'user_id'  => $user?->id ?? ($request->userID ?? null),
-                'name'     => $request->first_name . ' ' . $request->last_name,
-                'email'    => $user?->email ?? $request->email,
-                'phone'    => $request->phone,
+                'user_id' => $user?->id ?? ($request->userID ?? null),
+                'name' => $request->first_name.' '.$request->last_name,
+                'email' => $user?->email ?? $request->email,
+                'phone' => $request->phone,
                 'address1' => $request->address1,
                 'address2' => $request->address2,
-                'city'     => $request->city,
-                'state'    => $request->state,
-                'country'  => $request->country,
-                'zipcode'  => $request->zipcode,
-                'total'    => $trustedTotal,
-                'status'   => 'pending',
-                'is_paid'  => false,
-                'trading_box_pack_title'  => $this->tradingBoxValue($request, 'trading_box_pack_title',  'tradingBoxPackTitle'),
+                'city' => $request->city,
+                'state' => $request->state,
+                'country' => $request->country,
+                'zipcode' => $request->zipcode,
+                'total' => $trustedTotal,
+                'status' => 'pending',
+                'is_paid' => false,
+                'trading_box_pack_title' => $this->tradingBoxValue($request, 'trading_box_pack_title', 'tradingBoxPackTitle'),
                 'trading_box_created_for' => $this->tradingBoxValue($request, 'trading_box_created_for', 'tradingBoxCreatedFor'),
             ]);
 
@@ -175,14 +177,14 @@ class StripeGatewayService
                 ['order_id' => $order->id],
                 [
                     'first_name' => $request->first_name,
-                    'last_name'  => $request->last_name,
-                    'phone'      => $request->phone,
-                    'address1'   => $request->address1,
-                    'address2'   => $request->address2,
-                    'city'       => $request->city,
-                    'state'      => $request->state,
-                    'country'    => $request->country,
-                    'zipcode'    => $request->zipcode,
+                    'last_name' => $request->last_name,
+                    'phone' => $request->phone,
+                    'address1' => $request->address1,
+                    'address2' => $request->address2,
+                    'city' => $request->city,
+                    'state' => $request->state,
+                    'country' => $request->country,
+                    'zipcode' => $request->zipcode,
                 ]
             );
 
@@ -192,18 +194,18 @@ class StripeGatewayService
             foreach ($validatedItems as $item) {
                 $orderItem = $order->orderItems()->create([
                     'product_id' => $item['product_id'],
-                    'quantity'   => $item['qty'],
-                    'price'      => $item['price'],
-                    'has_joker'  => !empty($item['has_joker']),
+                    'quantity' => $item['qty'],
+                    'price' => $item['price'],
+                    'has_joker' => ! empty($item['has_joker']),
                     'addon_amount' => round($item['joker_addon'] ?? 0.0, 2),
                 ]);
 
                 // Determine if this item is customized based on product type
                 $productType = strtolower($item['product_type'] ?? 'simple');
-                $hasCustomization = match($productType) {
+                $hasCustomization = match ($productType) {
                     'trading', 'customizable' => true,
-                    'simple'                  => false,
-                    default                   => !empty($item['FinalProduct']),
+                    'simple' => false,
+                    default => ! empty($item['FinalProduct']),
                 };
 
                 $cardSaveResult = $this->storeOrderItemCards(
@@ -218,7 +220,7 @@ class StripeGatewayService
 
                 if ($isBoxItem) {
                     $update = [];
-                    if (!empty($request->tuckbox_image)) {
+                    if (! empty($request->tuckbox_image)) {
                         $tuckboxRaw = $request->tuckbox_image;
                         if (str_contains($tuckboxRaw, 'base64,')) {
                             $tuckboxRaw = explode('base64,', $tuckboxRaw)[1];
@@ -230,10 +232,10 @@ class StripeGatewayService
                     // Photo portrait: also persist the source box photos with
                     // their drag/zoom positions so the TGC job can regenerate
                     // the box on the photo portrait template.
-                    if (($item['customization_mode'] ?? null) === 'photo' && !empty($request->photo_box_images)) {
+                    if (($item['customization_mode'] ?? null) === 'photo' && ! empty($request->photo_box_images)) {
                         $update['photo_box_images'] = $request->photo_box_images;
                     }
-                    if (!empty($update)) {
+                    if (! empty($update)) {
                         $orderItem->update($update);
                     }
                 }
@@ -241,8 +243,8 @@ class StripeGatewayService
                 if ($cardSaveResult['count'] > 0) {
                     $isCustomized = true;
                     $orderItem->update([
-                        'customization_mode'   => $cardSaveResult['mode'],
-                        'card_design_count'    => $cardSaveResult['count'],
+                        'customization_mode' => $cardSaveResult['mode'],
+                        'card_design_count' => $cardSaveResult['count'],
                         'customization_images' => null,
                     ]);
                 } elseif ($hasCustomization) {
@@ -250,10 +252,10 @@ class StripeGatewayService
                 }
 
                 // Handle PDF files
-                if (!empty($item['FinalPDF']['data'])) {
-                    $pdfData  = base64_decode($item['FinalPDF']['data']);
-                    $fileName = 'custom_pdf_' . time() . '_' . $item['product_id'] . '.pdf';
-                    $filePath = 'customized_files/' . $fileName;
+                if (! empty($item['FinalPDF']['data'])) {
+                    $pdfData = base64_decode($item['FinalPDF']['data']);
+                    $fileName = 'custom_pdf_'.time().'_'.$item['product_id'].'.pdf';
+                    $filePath = 'customized_files/'.$fileName;
 
                     Storage::disk('public')->put($filePath, $pdfData);
                     $customizedFiles[] = $filePath;
@@ -261,12 +263,13 @@ class StripeGatewayService
                 }
             }
 
-
-            if (!empty($request->tuckbox_characters)) {
+            if (! empty($request->tuckbox_characters)) {
                 $characterBlobs = [];
 
                 foreach ($request->tuckbox_characters as $b64) {
-                    if (empty($b64)) continue;
+                    if (empty($b64)) {
+                        continue;
+                    }
                     $raw = $b64;
                     if (str_contains($raw, 'base64,')) {
                         $raw = explode('base64,', $raw, 2)[1];
@@ -277,8 +280,8 @@ class StripeGatewayService
                     }
                 }
 
-                if (!empty($characterBlobs)) {
-                    $compositeService = new \App\Services\TGC\TuckBoxCompositeService();
+                if (! empty($characterBlobs)) {
+                    $compositeService = new \App\Services\TGC\TuckBoxCompositeService;
                     $tuckboxBlob = $compositeService->composite($characterBlobs);
 
                     $order->loadMissing('orderItems.product');
@@ -292,6 +295,7 @@ class StripeGatewayService
                         if ($type === 'photo' || $mode === 'photo') {
                             return false;
                         }
+
                         return in_array($type, ['deck', 'deck-card', 'poker-deck'])
                             || $mode === 'deck';
                     });
@@ -304,8 +308,8 @@ class StripeGatewayService
                     }
 
                     // Save to disk for admin preview
-                    $fileName = 'tuckbox_' . time() . '.png';
-                    $filePath = 'customized_files/' . $fileName;
+                    $fileName = 'tuckbox_'.time().'.png';
+                    $filePath = 'customized_files/'.$fileName;
                     Storage::disk('public')->put($filePath, $tuckboxBlob);
                     $customizedFiles[] = $filePath;
                     $isCustomized = true;
@@ -313,13 +317,13 @@ class StripeGatewayService
             }
 
             // Trading box composite — isolated, does not touch deck card logic
-            $packTitle  = $this->tradingBoxValue($request, 'trading_box_pack_title',  'tradingBoxPackTitle');
+            $packTitle = $this->tradingBoxValue($request, 'trading_box_pack_title', 'tradingBoxPackTitle');
             $createdFor = $this->tradingBoxValue($request, 'trading_box_created_for', 'tradingBoxCreatedFor');
 
-            if (!empty($packTitle) || !empty($createdFor)) {
-                $tradingBoxService = new TradingBoxCompositeService();
+            if (! empty($packTitle) || ! empty($createdFor)) {
+                $tradingBoxService = new TradingBoxCompositeService;
                 $tradingBoxPath = $tradingBoxService->composite(
-                    $packTitle  ?? '',
+                    $packTitle ?? '',
                     $createdFor ?? ''
                 );
 
@@ -331,31 +335,30 @@ class StripeGatewayService
 
             // Update order with customization summary
             $order->update([
-                'is_customized'   => $isCustomized,
-                'customized_file' => !empty($customizedFiles) ? $customizedFiles : null,
+                'is_customized' => $isCustomized,
+                'customized_file' => ! empty($customizedFiles) ? $customizedFiles : null,
             ]);
-
 
             $order->orderHasPaids()->create([
                 'amount' => $trustedTotal,
                 'method' => 'stripe',
                 'status' => 'pending',
-                'notes'  => 'Awaiting Stripe payment',
+                'notes' => 'Awaiting Stripe payment',
             ]);
 
             $stripeItems = [];
 
             foreach ($validatedItems as $item) {
                 $stripeItems[] = [
-                    'name'  => $item['name'],
-                    'qty'   => $item['qty'],
+                    'name' => $item['name'],
+                    'qty' => $item['qty'],
                     'price' => round($item['base_price'] * 100),
                 ];
 
-                if (!empty($item['has_joker']) && !empty($item['joker_addon'])) {
+                if (! empty($item['has_joker']) && ! empty($item['joker_addon'])) {
                     $stripeItems[] = [
-                        'name'  => 'Joker Add-on',
-                        'qty'   => $item['qty'],
+                        'name' => 'Joker Add-on',
+                        'qty' => $item['qty'],
                         'price' => round($item['joker_addon'] * 100),
                     ];
                 }
@@ -370,39 +373,37 @@ class StripeGatewayService
 
             if ($taxCents > 0) {
                 $stripeItems[] = [
-                    'name'  => 'Tax',
-                    'qty'   => 1,
+                    'name' => 'Tax',
+                    'qty' => 1,
                     'price' => $taxCents,
                 ];
             }
 
-
             $gateway = PaymentGatewayFactory::make('stripe');
 
             $session = $gateway->createCheckout([
-                'items'       => $stripeItems,
-                'success_url' => rtrim(config('app.frontend_url'), '/') . '/payment/success?session_id={CHECKOUT_SESSION_ID}',
-                'cancel_url'  => rtrim(config('app.frontend_url'), '/') . '/payment/cancel?session_id={CHECKOUT_SESSION_ID}',
+                'items' => $stripeItems,
+                'success_url' => rtrim(config('app.frontend_url'), '/').'/payment/success?session_id={CHECKOUT_SESSION_ID}',
+                'cancel_url' => rtrim(config('app.frontend_url'), '/').'/payment/cancel?session_id={CHECKOUT_SESSION_ID}',
 
-                'currency'    => 'usd',
+                'currency' => 'usd',
                 'metadata' => [
-                    'order_id'   => $order->id,
+                    'order_id' => $order->id,
                     'first_name' => $request->first_name,
-                    'last_name'  => $request->last_name,
-                    'phone'      => $request->phone,
-                    'address1'   => $request->address1,
-                    'address2'   => $request->address2,
-                    'city'       => $request->city,
-                    'state'      => $request->state,
-                    'country'    => $request->country,
-                    'zipcode'    => $request->zipcode,
+                    'last_name' => $request->last_name,
+                    'phone' => $request->phone,
+                    'address1' => $request->address1,
+                    'address2' => $request->address2,
+                    'city' => $request->city,
+                    'state' => $request->state,
+                    'country' => $request->country,
+                    'zipcode' => $request->zipcode,
                 ],
                 'expires_at' => now()->addHours(1)->timestamp,
                 'after_expiration' => [
                     'recovery' => ['enabled' => true],
                 ],
             ]);
-
 
             $order->update([
                 'stripe_session_id' => $session->id,
@@ -411,9 +412,9 @@ class StripeGatewayService
             DB::commit();
 
             return response()->json([
-                'success'           => true,
-                'checkout_url'      => $session->url,
-                'order_id'          => $order->id,
+                'success' => true,
+                'checkout_url' => $session->url,
+                'order_id' => $order->id,
                 'stripe_session_id' => $session->id,
             ]);
 
@@ -432,20 +433,20 @@ class StripeGatewayService
             $user = auth('api')->user();
 
             $order = \App\Models\Order::create([
-                'user_id'  => $user?->id ?? ($request->userID ?? null),
-                'name'     => $request->first_name . ' ' . $request->last_name,
-                'email'    => $user?->email ?? $request->email,
-                'phone'    => $request->phone,
+                'user_id' => $user?->id ?? ($request->userID ?? null),
+                'name' => $request->first_name.' '.$request->last_name,
+                'email' => $user?->email ?? $request->email,
+                'phone' => $request->phone,
                 'address1' => $request->address1,
                 'address2' => $request->address2,
-                'city'     => $request->city,
-                'state'    => $request->state,
-                'country'  => $request->country,
-                'zipcode'  => $request->zipcode,
-                'total'    => $trustedTotal,
-                'status'   => 'pending',
-                'is_paid'  => false,
-                'trading_box_pack_title'  => $this->tradingBoxValue($request, 'trading_box_pack_title',  'tradingBoxPackTitle'),
+                'city' => $request->city,
+                'state' => $request->state,
+                'country' => $request->country,
+                'zipcode' => $request->zipcode,
+                'total' => $trustedTotal,
+                'status' => 'pending',
+                'is_paid' => false,
+                'trading_box_pack_title' => $this->tradingBoxValue($request, 'trading_box_pack_title', 'tradingBoxPackTitle'),
                 'trading_box_created_for' => $this->tradingBoxValue($request, 'trading_box_created_for', 'tradingBoxCreatedFor'),
             ]);
 
@@ -453,23 +454,23 @@ class StripeGatewayService
                 ['order_id' => $order->id],
                 [
                     'first_name' => $request->first_name,
-                    'last_name'  => $request->last_name,
-                    'phone'      => $request->phone,
-                    'address1'   => $request->address1,
-                    'address2'   => $request->address2,
-                    'city'       => $request->city,
-                    'state'      => $request->state,
-                    'country'    => $request->country,
-                    'zipcode'    => $request->zipcode,
+                    'last_name' => $request->last_name,
+                    'phone' => $request->phone,
+                    'address1' => $request->address1,
+                    'address2' => $request->address2,
+                    'city' => $request->city,
+                    'state' => $request->state,
+                    'country' => $request->country,
+                    'zipcode' => $request->zipcode,
                 ]
             );
 
             foreach ($validatedItems as $item) {
                 $orderItem = $order->orderItems()->create([
                     'product_id' => $item['product_id'],
-                    'quantity'   => $item['qty'],
-                    'price'      => $item['price'],
-                    'has_joker'  => !empty($item['has_joker']),
+                    'quantity' => $item['qty'],
+                    'price' => $item['price'],
+                    'has_joker' => ! empty($item['has_joker']),
                     'addon_amount' => round($item['joker_addon'] ?? 0.0, 2),
                 ]);
 
@@ -482,15 +483,15 @@ class StripeGatewayService
                     ]);
                 }
 
-                if (!empty($item['FinalPDF']['data'])) {
+                if (! empty($item['FinalPDF']['data'])) {
                     $pdfData = base64_decode($item['FinalPDF']['data']);
-                    $fileName = 'custom_pdf_' . time() . '_' . $item['product_id'] . '.pdf';
-                    $filePath = 'customized_files/' . $fileName;
+                    $fileName = 'custom_pdf_'.time().'_'.$item['product_id'].'.pdf';
+                    $filePath = 'customized_files/'.$fileName;
 
                     Storage::disk('public')->put($filePath, $pdfData);
 
                     $order->update([
-                        'is_customized'   => true,
+                        'is_customized' => true,
                         'customized_file' => $filePath,
                     ]);
                 }
@@ -500,15 +501,15 @@ class StripeGatewayService
                 'amount' => $trustedTotal,
                 'method' => 'cod',
                 'status' => 'pending',
-                'notes'  => 'Cash on Delivery',
+                'notes' => 'Cash on Delivery',
             ]);
 
             DB::commit();
 
             return response()->json([
-                'success'  => true,
-                'gateway'  => 'cod',
-                'message'  => 'Order placed successfully using Cash on Delivery.',
+                'success' => true,
+                'gateway' => 'cod',
+                'message' => 'Order placed successfully using Cash on Delivery.',
                 'order_id' => $order->id,
             ]);
 
@@ -531,10 +532,11 @@ class StripeGatewayService
         }
 
         $entries = [];
-        
+
         foreach ($finalProduct as $entry) {
             if (is_string($entry)) {
                 $entries[] = ['image' => $entry];
+
                 continue;
             }
 
@@ -553,7 +555,7 @@ class StripeGatewayService
 
         foreach ($entries as $index => $entry) {
             $base64 = $entry['image'] ?? $entry['data'] ?? null;
-            if (!is_string($base64) || $base64 === '') {
+            if (! is_string($base64) || $base64 === '') {
                 continue;
             }
 
@@ -564,7 +566,7 @@ class StripeGatewayService
 
             $side = $entry['side'] ?? null;
             $rank = $entry['rank'] ?? null;
-            if ($mode === 'deck') {
+            if ($mode === 'deck' || $mode === 'photo') {
                 $side = 'single';
                 $rank = $rank ?: (self::DECK_RANKS[$index] ?? null);
             } else {
@@ -579,7 +581,7 @@ class StripeGatewayService
             // valid slot from the frontend is always preserved.
             $slotName = $entry['name'] ?? null;
             if ($mode === 'deck' && strtolower((string) $rank) === 'joker'
-                && !in_array($slotName, ['Joker_1', 'Joker_2'], true)) {
+                && ! in_array($slotName, ['Joker_1', 'Joker_2'], true)) {
                 $slotName = 'Joker_1';
             }
 
@@ -587,18 +589,18 @@ class StripeGatewayService
             [$characterMime, $characterBlob] = $this->decodeBase64Image($characterImage);
 
             $orderItem->cards()->create([
-                'card_pair_key'    => $isTrading ? ($entry['card_pair_key'] ?? $tradingGroupKey) : null,
-                'card_type'        => $mode,
-                'side'             => $side,
-                'rank'             => $rank,
-                'slot_name'        => $slotName,
-                'position'         => $index + 1,
-                'image_blob'       => $blob,
-                'image_mime'       => $mime,
-                'character_blob'   => $characterBlob ?: null,
-                'character_mime'   => $characterBlob ? $characterMime : null,
+                'card_pair_key' => $isTrading ? ($entry['card_pair_key'] ?? $tradingGroupKey) : null,
+                'card_type' => $mode,
+                'side' => $side,
+                'rank' => $rank,
+                'slot_name' => $slotName,
+                'position' => $index + 1,
+                'image_blob' => $blob,
+                'image_mime' => $mime,
+                'character_blob' => $characterBlob ?: null,
+                'character_mime' => $characterBlob ? $characterMime : null,
                 'image_size_bytes' => strlen($blob),
-                'image_sha256'     => hash('sha256', $blob),
+                'image_sha256' => hash('sha256', $blob),
             ]);
         }
 
@@ -644,12 +646,13 @@ class StripeGatewayService
         foreach ($stripeItems as $item) {
             $sum += ($item['price'] ?? 0) * ($item['qty'] ?? 1);
         }
+
         return $sum / 100;
     }
 
     private function detectCustomizationMode(array $entries, ?string $requestedMode = null): string
     {
-        if (in_array($requestedMode, ['trading', 'deck'], true)) {
+        if (in_array($requestedMode, ['trading', 'deck', 'photo'], true)) {
             return $requestedMode;
         }
 
@@ -681,6 +684,7 @@ class StripeGatewayService
             return null;
         }
         $value = trim((string) $value);
+
         return $value === '' ? null : $value;
     }
 }

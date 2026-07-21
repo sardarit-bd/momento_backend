@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\PaymentGateway;
 
+use App\Http\Controllers\Controller;
 use App\Jobs\TGC\PublishDeckJob;
 use App\Models\Order;
 use App\Models\ShippingInformation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Http\Controllers\Controller;
 
 class WebhookController extends Controller
 {
@@ -18,8 +18,9 @@ class WebhookController extends Controller
         $signature = $request->header('Stripe-Signature');
         $webhookSecret = config('services.stripe.webhook_secret');
 
-        if (!$webhookSecret) {
+        if (! $webhookSecret) {
             Log::error('Stripe webhook secret not configured');
+
             return response()->json(['error' => 'Webhook not configured'], 500);
         }
 
@@ -43,6 +44,7 @@ class WebhookController extends Controller
 
         } catch (\Stripe\Exception\SignatureVerificationException $e) {
             Log::error('Invalid webhook signature', ['error' => $e->getMessage()]);
+
             return response()->json(['error' => 'Invalid signature'], 400);
 
         } catch (\Exception $e) {
@@ -50,6 +52,7 @@ class WebhookController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return response()->json(['error' => 'Webhook failed'], 500);
         }
     }
@@ -58,21 +61,37 @@ class WebhookController extends Controller
     {
         $orderId = $session->metadata->order_id ?? null;
 
-        if (!$orderId) {
+        if (! $orderId) {
             Log::error('Missing order_id in Stripe metadata');
+
             return response()->json(['error' => 'Missing order ID'], 400);
         }
 
         $order = Order::with('orderHasPaids')->find($orderId);
 
-        if (!$order) {
+        if (! $order) {
             Log::error('Order not found', ['order_id' => $orderId]);
+
             return response()->json(['error' => 'Order not found'], 404);
         }
 
         DB::beginTransaction();
 
         try {
+            // Idempotency: skip if this stripe session was already processed
+            if ($order->stripe_session_id === $session->id) {
+                Log::info('Stripe webhook skipped: order already has this session_id', [
+                    'order_id' => $order->id,
+                    'session_id' => $session->id,
+                ]);
+
+                return response()->json([
+                    'received' => true,
+                    'order_id' => $order->id,
+                    'message' => 'Payment already processed',
+                ]);
+            }
+
             // 1. Update payment record
             $payment = $order->orderHasPaids()
                 ->where('method', 'stripe')
@@ -81,9 +100,9 @@ class WebhookController extends Controller
 
             if ($payment) {
                 $payment->update([
-                    'status'         => 'completed',
+                    'status' => 'completed',
                     'transaction_id' => $session->payment_intent ?? $session->id,
-                    'notes'          => 'Payment completed successfully via Stripe.',
+                    'notes' => 'Payment completed successfully via Stripe.',
                 ]);
             } else {
                 $payment = $order->orderHasPaids()->create([
@@ -97,8 +116,8 @@ class WebhookController extends Controller
 
             // 2. Update order as paid and completed
             $order->update([
-                'is_paid'           => true,
-                'status'            => 'completed',
+                'is_paid' => true,
+                'status' => 'completed',
                 'stripe_session_id' => $session->id,
             ]);
 
@@ -107,14 +126,14 @@ class WebhookController extends Controller
                 ['order_id' => $order->id],
                 [
                     'first_name' => (string) ($session->metadata->first_name ?? ''),
-                    'last_name'  => (string) ($session->metadata->last_name ?? ''),
-                    'phone'      => (string) ($session->metadata->phone ?? ''),
-                    'address1'   => (string) ($session->metadata->address1 ?? ''),
-                    'address2'   => (string) ($session->metadata->address2 ?? ''),
-                    'city'       => (string) ($session->metadata->city ?? ''),
-                    'state'      => (string) ($session->metadata->state ?? ''),
-                    'country'    => (string) ($session->metadata->country ?? ''),
-                    'zipcode'    => (string) ($session->metadata->zipcode ?? ''),
+                    'last_name' => (string) ($session->metadata->last_name ?? ''),
+                    'phone' => (string) ($session->metadata->phone ?? ''),
+                    'address1' => (string) ($session->metadata->address1 ?? ''),
+                    'address2' => (string) ($session->metadata->address2 ?? ''),
+                    'city' => (string) ($session->metadata->city ?? ''),
+                    'state' => (string) ($session->metadata->state ?? ''),
+                    'country' => (string) ($session->metadata->country ?? ''),
+                    'zipcode' => (string) ($session->metadata->zipcode ?? ''),
                 ]
             );
 
@@ -130,9 +149,10 @@ class WebhookController extends Controller
                 // — otherwise an extra deck order would be published.
                 $hasDeck = $order->orderItems->contains(function ($i) {
                     $type = strtolower((string) optional($i->product)->type);
-                    if ($type !== '' && !in_array($type, ['deck', 'deck-card', 'poker-deck'])) {
+                    if ($type !== '' && ! in_array($type, ['deck', 'deck-card', 'poker-deck'])) {
                         return false;
                     }
+
                     return $type !== 'photo'
                         && $i->customization_mode !== 'photo'
                         && (in_array($type, ['deck', 'deck-card', 'poker-deck'])
@@ -144,6 +164,7 @@ class WebhookController extends Controller
                     if ($productType !== '') {
                         return $productType === 'trading';
                     }
+
                     return $i->customization_mode === 'trading';
                 });
 
@@ -152,6 +173,7 @@ class WebhookController extends Controller
                     if ($productType !== '') {
                         return $productType === 'photo';
                     }
+
                     return $i->customization_mode === 'photo';
                 });
 
@@ -171,7 +193,7 @@ class WebhookController extends Controller
             return response()->json([
                 'received' => true,
                 'order_id' => $order->id,
-                'message'  => 'Payment processed successfully',
+                'message' => 'Payment processed successfully',
             ]);
 
         } catch (\Exception $e) {
@@ -179,8 +201,8 @@ class WebhookController extends Controller
 
             Log::error('Failed to process completed payment', [
                 'order_id' => $orderId,
-                'error'    => $e->getMessage(),
-                'trace'    => $e->getTraceAsString(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json(['error' => 'Payment update failed'], 500);
@@ -191,13 +213,13 @@ class WebhookController extends Controller
     {
         $orderId = $session->metadata->order_id ?? null;
 
-        if (!$orderId) {
+        if (! $orderId) {
             return response()->json(['received' => true]);
         }
 
         $order = Order::find($orderId);
 
-        if (!$order) {
+        if (! $order) {
             return response()->json(['received' => true]);
         }
 
@@ -220,19 +242,19 @@ class WebhookController extends Controller
                 $recoveryUrl = $session->after_expiration->recovery->url ?? null;
 
                 if ($recoveryUrl) {
-                    $notes .= ' Recovery link: ' . $recoveryUrl;
+                    $notes .= ' Recovery link: '.$recoveryUrl;
                 }
 
                 $payment->update([
-                    'status'         => 'failed',
+                    'status' => 'failed',
                     'transaction_id' => $session->id,
-                    'notes'          => $notes,
+                    'notes' => $notes,
                 ]);
             }
 
             $order->update([
                 'is_paid' => false,
-                'status'  => 'pending',
+                'status' => 'pending',
             ]);
 
             DB::commit();
@@ -242,7 +264,7 @@ class WebhookController extends Controller
 
             Log::error('Failed to process expired session', [
                 'order_id' => $orderId,
-                'error'    => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 

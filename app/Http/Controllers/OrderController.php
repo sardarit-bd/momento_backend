@@ -4,22 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Services\PaymentGateway\PaymentGatewayFactory;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use App\Services\PaymentGateway\PaymentGatewayFactory;
-use App\Http\Resources\OrderResource;
 
 /**
  * Class OrderController
  *
  * Handles order creation, listing, and details.
  * Includes payment trace handling on order creation.
- *
- * @package App\Http\Controllers
  */
 class OrderController extends Controller
 {
@@ -39,12 +36,11 @@ class OrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'status'  => 200,
+            'status' => 200,
             'message' => 'Orders fetched successfully',
-            'data'    => ['orders' => $orders],
+            'data' => ['orders' => $orders],
         ]);
     }
-
 
     public function adminOrders(Request $request)
     {
@@ -67,26 +63,26 @@ class OrderController extends Controller
 
         $formatted = $orders->getCollection()->map(function ($order) {
             return [
-                'id'             => $order->id,
-                'name'           => $order->name,
-                'email'          => $order->email,
-                'total'          => $order->total,
-                'is_customized'  => $order->is_customized,
-                'is_paid'        => $order->is_paid,
+                'id' => $order->id,
+                'name' => $order->name,
+                'email' => $order->email,
+                'total' => $order->total,
+                'is_customized' => $order->is_customized,
+                'is_paid' => $order->is_paid,
                 'tgc_receipt_id' => $order->tgc_receipt_id, // ← add this
-                'created_at'     => $order->created_at,
+                'created_at' => $order->created_at,
             ];
         });
 
         return response()->json([
             'success' => true,
-            'data'    => [
+            'data' => [
                 'orders' => $formatted,
                 'pagination' => [
                     'current_page' => $orders->currentPage(),
-                    'last_page'    => $orders->lastPage(),
-                    'per_page'     => $orders->perPage(),
-                    'total'        => $orders->total(),
+                    'last_page' => $orders->lastPage(),
+                    'per_page' => $orders->perPage(),
+                    'total' => $orders->total(),
                 ],
             ],
         ]);
@@ -105,61 +101,61 @@ class OrderController extends Controller
         ])->findOrFail($id);
 
         $formatted = [
-            'id'                => $order->id,
-            'name'              => $order->name,
-            'email'             => $order->email,
-            'phone'             => $order->phone,
-            'address'           => $order->address,
-            'city'              => $order->city,
-            'zipcode'           => $order->zipcode,
-            'total'             => $order->total,
-            'status'            => $order->status,
-            'is_paid'           => $order->is_paid,
-            'tgc_receipt_id'    => $order->tgc_receipt_id, 
-            'is_customized'     => $order->is_customized,
-            'customized_file'   => $order->customized_file,
+            'id' => $order->id,
+            'name' => $order->name,
+            'email' => $order->email,
+            'phone' => $order->phone,
+            'address' => $order->address,
+            'city' => $order->city,
+            'zipcode' => $order->zipcode,
+            'total' => $order->total,
+            'status' => $order->status,
+            'is_paid' => $order->is_paid,
+            'tgc_receipt_id' => $order->tgc_receipt_id,
+            'is_customized' => $order->is_customized,
+            'customized_file' => $order->customized_file,
             'customized_file_url' => $order->customized_file_url ?? null,
             'stripe_session_id' => $order->stripe_session_id,
-            'created_at'        => $order->created_at,
+            'created_at' => $order->created_at,
 
             'order_items' => $order->orderItems->map(function ($item) {
                 return [
-                    'id'                 => $item->id,
-                    'product_id'         => $item->product_id,
-                    'quantity'           => $item->quantity,
-                    'price'              => $item->price,
+                    'id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                    'price' => $item->price,
                     'customization_mode' => $item->customization_mode,
-                    'card_design_count'  => $item->card_design_count,
-                    'product'            => $item->product ? [
-                        'id'   => $item->product->id,
+                    'card_design_count' => $item->card_design_count,
+                    'product' => $item->product ? [
+                        'id' => $item->product->id,
                         'name' => $item->product->name,
                         'type' => $item->product->type,
                     ] : null,
                     'cards' => $item->cards->map(function ($card) {
                         $mime = $card->image_mime ?? 'image/png';
-                        $b64  = $card->image_blob ? base64_encode($card->image_blob) : null;
+                        $b64 = $card->image_blob ? base64_encode($card->image_blob) : null;
 
                         return [
-                            'id'        => $card->id,
-                            'side'      => $card->side,
-                            'rank'      => $card->rank,
-                            'position'  => $card->position,
+                            'id' => $card->id,
+                            'side' => $card->side,
+                            'rank' => $card->rank,
+                            'position' => $card->position,
                             'card_type' => $card->card_type,
-                            'image'     => $b64 ? "data:{$mime};base64,{$b64}" : null,
+                            'image' => $b64 ? "data:{$mime};base64,{$b64}" : null,
                         ];
                     }),
                     'tuckbox_image' => $item->tuckbox_image_blob
-                        ? 'data:' . ($item->tuckbox_image_mime ?? 'image/png') . ';base64,' . base64_encode($item->tuckbox_image_blob)
+                        ? 'data:'.($item->tuckbox_image_mime ?? 'image/png').';base64,'.base64_encode($item->tuckbox_image_blob)
                         : null,
                 ];
             }),
 
             'payments' => $order->orderHasPaids->map(function ($p) {
                 return [
-                    'id'             => $p->id,
-                    'amount'         => $p->amount,
-                    'method'         => $p->method,
-                    'status'         => $p->status,
+                    'id' => $p->id,
+                    'amount' => $p->amount,
+                    'method' => $p->method,
+                    'status' => $p->status,
                     'transaction_id' => $p->transaction_id,
                 ];
             }),
@@ -167,59 +163,56 @@ class OrderController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
+            'data' => [
                 'order' => $formatted,
             ],
         ]);
     }
-        
-    
 
     public function store(Request $request)
     {
         $user = User::where('id', $request->userID)->latest()->first();
 
-        if ($request->has('items') && !$request->has('order_items')) {
+        if ($request->has('items') && ! $request->has('order_items')) {
             $request->merge(['order_items' => $request->input('items')]);
         }
 
-        if (!$request->has('name') && $request->has('first_name')) {
+        if (! $request->has('name') && $request->has('first_name')) {
             $request->merge([
-                'name' => trim($request->first_name . ' ' . $request->last_name)
+                'name' => trim($request->first_name.' '.$request->last_name),
             ]);
         }
-        
 
         // Validate request
         $validator = Validator::make($request->all(), [
-            'name'              => 'required|string|max:255',
-            'email'             => 'required|email',
-            'phone'             => 'required|string|max:50',
-            'address1'          => 'required|string|max:500',
-            'address2'          => 'nullable|string|max:500',
-            'city'              => 'nullable|string|max:100',
-            'state'             => 'nullable|string|max:100',
-            'country'           => 'nullable|string|max:100',
-            'zipcode'           => 'nullable|string|max:20',
-            'order_items'       => 'required|array|min:1',
-            'order_items.*.product_id'    => 'required|exists:products,id',
-            'order_items.*.quantity'      => 'required|integer|min:1',
-            'order_items.*.price'         => 'nullable|numeric|min:0',
-            'order_items.*.FinalPDF'      => 'nullable|array',
-            'order_items.*.FinalProduct'  => 'nullable|array',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email',
+            'phone' => 'required|string|max:50',
+            'address1' => 'required|string|max:500',
+            'address2' => 'nullable|string|max:500',
+            'city' => 'nullable|string|max:100',
+            'state' => 'nullable|string|max:100',
+            'country' => 'nullable|string|max:100',
+            'zipcode' => 'nullable|string|max:20',
+            'order_items' => 'required|array|min:1',
+            'order_items.*.product_id' => 'required|exists:products,id',
+            'order_items.*.quantity' => 'required|integer|min:1',
+            'order_items.*.price' => 'nullable|numeric|min:0',
+            'order_items.*.FinalPDF' => 'nullable|array',
+            'order_items.*.FinalProduct' => 'nullable|array',
             'order_items.*.tuckbox_image' => 'nullable|string',
-            'payment_method'    => 'required|string|in:cash,cod,card,stripe,bkash',
-            'payment_status'    => 'nullable|string|in:pending,completed,failed',
-            'transaction_id'    => 'nullable|string|max:100',
-            'notes'             => 'nullable|string',
+            'payment_method' => 'required|string|in:cash,cod,card,stripe,bkash',
+            'payment_status' => 'nullable|string|in:pending,completed,failed',
+            'transaction_id' => 'nullable|string|max:100',
+            'notes' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'status'  => 422,
+                'status' => 422,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ]);
         }
 
@@ -230,23 +223,23 @@ class OrderController extends Controller
 
             // Create initial order (total will be updated after calculating)
             $order = Order::create([
-                'user_id'  => $user->id,
-                'name'     => $request->name,
-                'email'    => $request->email,
-                'phone'    => $request->phone,
+                'user_id' => $user->id,
+                'name' => $request->name,
+                'email' => $request->email,
+                'phone' => $request->phone,
                 'address1' => $request->address1,
                 'address2' => $request->address2,
-                'city'     => $request->city,
-                'state'    => $request->state,
-                'country'  => $request->country,
-                'zipcode'  => $request->zipcode,
-                'total'    => 0,
-                'status'   => 'pending',
+                'city' => $request->city,
+                'state' => $request->state,
+                'country' => $request->country,
+                'zipcode' => $request->zipcode,
+                'total' => 0,
+                'status' => 'pending',
             ]);
 
             foreach ($request->order_items as $item) {
                 $quantity = $item['quantity'] ?? 0;
-                $price    = $item['price'] ?? 0;
+                $price = $item['price'] ?? 0;
 
                 // Update total
                 $total += $quantity * $price;
@@ -254,13 +247,13 @@ class OrderController extends Controller
                 // Create order item
                 $orderItem = $order->orderItems()->create([
                     'product_id' => $item['product_id'],
-                    'quantity'   => $quantity,
-                    'price'      => $price,
+                    'quantity' => $quantity,
+                    'price' => $price,
                 ]);
 
                 // Save tuckbox image if present
                 $tuckUpdate = [];
-                if (!empty($item['tuckbox_image'])) {
+                if (! empty($item['tuckbox_image'])) {
                     [$mime, $blob] = $this->decodeBase64Image($item['tuckbox_image']);
                     if ($blob !== null) {
                         $tuckUpdate['tuckbox_image_blob'] = $blob;
@@ -268,10 +261,10 @@ class OrderController extends Controller
                     }
                 }
                 // Photo portrait: persist source box photos + positions
-                if (($item['customization_mode'] ?? null) === 'photo' && !empty($item['photo_box_images'])) {
+                if (($item['customization_mode'] ?? null) === 'photo' && ! empty($item['photo_box_images'])) {
                     $tuckUpdate['photo_box_images'] = $item['photo_box_images'];
                 }
-                if (!empty($tuckUpdate)) {
+                if (! empty($tuckUpdate)) {
                     $orderItem->update($tuckUpdate);
                 }
 
@@ -285,15 +278,15 @@ class OrderController extends Controller
                 }
 
                 // Save FinalPDF if exist → decode base64 and save file
-                if (!empty($item['FinalPDF']['data'])) {
+                if (! empty($item['FinalPDF']['data'])) {
                     $pdfData = base64_decode($item['FinalPDF']['data']);
-                    $fileName = 'custom_pdf_' . time() . '_' . $item['product_id'] . '.pdf';
-                    $filePath = 'customized_files/' . $fileName;
+                    $fileName = 'custom_pdf_'.time().'_'.$item['product_id'].'.pdf';
+                    $filePath = 'customized_files/'.$fileName;
 
                     Storage::disk('public')->put($filePath, $pdfData);
 
                     $order->update([
-                        'is_customized'   => true,
+                        'is_customized' => true,
                         'customized_file' => $filePath,
                     ]);
                 }
@@ -304,37 +297,38 @@ class OrderController extends Controller
 
             // Payment record
             $order->orderHasPaids()->create([
-                'amount'         => $total,
-                'method'         => $request->payment_method,
-                'status'         => $request->payment_status,
+                'amount' => $total,
+                'method' => $request->payment_method,
+                'status' => $request->payment_status,
                 'transaction_id' => $request->transaction_id ?? null,
-                'notes'          => $request->notes ?? null,
+                'notes' => $request->notes ?? null,
             ]);
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'status'  => 201,
+                'status' => 201,
                 'message' => 'Order created successfully',
-                'data'    => [
+                'data' => [
                     'order' => [
-                        'id'         => $order->id,
-                        'name'       => $order->name,
-                        'email'      => $order->email,
-                        'total'      => $order->total,
-                        'status'     => $order->status,
+                        'id' => $order->id,
+                        'name' => $order->name,
+                        'email' => $order->email,
+                        'total' => $order->total,
+                        'status' => $order->status,
                         'created_at' => $order->created_at,
                     ],
                 ],
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Failed to create order',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -353,6 +347,7 @@ class OrderController extends Controller
         foreach ($finalProduct as $entry) {
             if (is_string($entry)) {
                 $entries[] = ['image' => $entry];
+
                 continue;
             }
 
@@ -371,7 +366,7 @@ class OrderController extends Controller
 
         foreach ($entries as $index => $entry) {
             $base64 = $entry['image'] ?? $entry['data'] ?? null;
-            if (!is_string($base64) || $base64 === '') {
+            if (! is_string($base64) || $base64 === '') {
                 continue;
             }
 
@@ -382,7 +377,7 @@ class OrderController extends Controller
 
             $side = $entry['side'] ?? null;
             $rank = $entry['rank'] ?? null;
-            if ($mode === 'deck') {
+            if ($mode === 'deck' || $mode === 'photo') {
                 $side = 'single';
                 $rank = $rank ?: (self::DECK_RANKS[$index] ?? null);
             } else {
@@ -397,7 +392,7 @@ class OrderController extends Controller
             // valid slot from the frontend is always preserved.
             $slotName = $entry['name'] ?? null;
             if ($mode === 'deck' && strtolower((string) $rank) === 'joker'
-                && !in_array($slotName, ['Joker_1', 'Joker_2'], true)) {
+                && ! in_array($slotName, ['Joker_1', 'Joker_2'], true)) {
                 $slotName = 'Joker_1';
             }
 
@@ -444,7 +439,7 @@ class OrderController extends Controller
 
     private function detectCustomizationMode(array $entries, ?string $requestedMode = null): string
     {
-        if (in_array($requestedMode, ['trading', 'deck'], true)) {
+        if (in_array($requestedMode, ['trading', 'deck', 'photo'], true)) {
             return $requestedMode;
         }
 
@@ -465,7 +460,6 @@ class OrderController extends Controller
         return in_array(count($entries), [4, 5], true) ? 'deck' : 'trading';
     }
 
-
     /**
      * Show a single order with its items and payments.
      */
@@ -473,12 +467,11 @@ class OrderController extends Controller
     {
         $order = Order::with(['orderItems.product'])->find($id);
 
-        if (!$order) {
+        if (! $order) {
             return response()->json([
                 'message' => 'Order not found',
             ], 404);
         }
-
 
         $images = [];
         foreach ($order->orderItems as $item) {
@@ -486,27 +479,27 @@ class OrderController extends Controller
             if ($product && $product->image) {
                 $imagePath = public_path($product->image);
 
-                if (!file_exists($imagePath)) {
-                    $imagePath = storage_path('app/public/' . ltrim($product->image, '/'));
+                if (! file_exists($imagePath)) {
+                    $imagePath = storage_path('app/public/'.ltrim($product->image, '/'));
                 }
 
                 if (file_exists($imagePath)) {
                     $mime = mime_content_type($imagePath) ?: 'image/png';
-                    $images[] = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($imagePath));
+                    $images[] = 'data:'.$mime.';base64,'.base64_encode(file_get_contents($imagePath));
                 }
             }
         }
 
         return response()->json([
             'AllProductImage' => $images,
-            'City'            => $order->city ?? '',
-            'address'         => $order->address,
-            'email'           => $order->email,
-            'name'            => $order->name,
-            'payment_method'  => optional($order->orderHasPaids->last())->method ?? 'cod',
-            'phone'           => $order->phone,
+            'City' => $order->city ?? '',
+            'address' => $order->address,
+            'email' => $order->email,
+            'name' => $order->name,
+            'payment_method' => optional($order->orderHasPaids->last())->method ?? 'cod',
+            'phone' => $order->phone,
             'roundTotolPrice' => $order->total,
-            'zipcode'         => $order->zipcode ?? '',
+            'zipcode' => $order->zipcode ?? '',
         ]);
     }
 
@@ -519,7 +512,7 @@ class OrderController extends Controller
 
         $user = auth('api')->user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json(['error' => 'Authentication required'], 401);
         }
 
@@ -546,6 +539,7 @@ class OrderController extends Controller
         $stripeItems = $order->orderItems->map(function ($item) {
             $product = $item->product;
             $sellingPrice = $product->offer_price > 0 ? $product->offer_price : $product->price;
+
             return [
                 'name' => $product->name,
                 'qty' => $item->quantity,
@@ -556,8 +550,8 @@ class OrderController extends Controller
         $session = $gateway->createCheckout([
             'items' => $stripeItems,
             'order_id' => $order->id,
-            'success_url' => env('APP_URL') . '/payment/success',
-            'cancel_url' => env('APP_URL') . '/payment/cancel',
+            'success_url' => env('APP_URL').'/payment/success',
+            'cancel_url' => env('APP_URL').'/payment/cancel',
             'currency' => 'usd',
             'metadata' => ['order_id' => $order->id],
             'expires_at' => now()->addHour(1)->timestamp,
@@ -571,7 +565,7 @@ class OrderController extends Controller
     {
         $order = Order::find($id);
 
-        if (!$order) {
+        if (! $order) {
             return response()->json(['error' => 'Order not found'], 404);
         }
 
@@ -580,29 +574,23 @@ class OrderController extends Controller
         return response()->json(['message' => 'Order updated successfully']);
     }
 
-    public function destroy() {
-        
-    }
-    
-    
-    // My Orders here 
-    // My Orders here 
-    // My Orders here 
-    
-    public function myorders(Request $request,$id)
+    public function destroy() {}
+
+    // My Orders here
+    // My Orders here
+    // My Orders here
+
+    public function myorders(Request $request, $id)
     {
-         $orders = Order::with(['orderItems.product', 'user:id,name,email'])
-            ->where('user_id',$id)
+        $orders = Order::with(['orderItems.product', 'user:id,name,email'])
+            ->where('user_id', $id)
             ->latest('id')
             ->paginate(10);
-            
-             return response()->json([
-             'message' => 'Order fetched successfully',
-             'data'=> $orders
-            ]);
-    
+
+        return response()->json([
+            'message' => 'Order fetched successfully',
+            'data' => $orders,
+        ]);
+
     }
-
-    
-
 }

@@ -15,6 +15,7 @@ class OrderShipment extends Model
         'tgc_shipment_id',
         'tracking_number',
         'tracking_url',
+        'carrier',
         'shipped_at',
         'notified_at',
         'raw_payload',

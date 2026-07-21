@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Prunable;
 
 class Order extends Model
 {
-    use Prunable;
+    use HasFactory, Prunable;
 
     protected $fillable = [
         'user_id', 'name', 'email', 'phone',
@@ -62,13 +63,12 @@ class Order extends Model
             ->where('created_at', '<=', now()->subHours(24));
     }
 
-
     protected $appends = ['customized_file_url'];
 
     public function getCustomizedFileUrlAttribute()
     {
         if ($this->customized_file) {
-            return asset('storage/' . $this->customized_file);
+            return asset('storage/'.$this->customized_file);
         }
 
         return null;

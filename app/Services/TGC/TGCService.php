@@ -301,9 +301,9 @@ class TGCService
 
     public function listWebhooks(): array
     {
-        return $this->request('GET', '/webhook', [
-            'owner_id' => $this->sessionManager->getUserId(),
-        ]);
+        $userId = $this->sessionManager->getUserId();
+
+        return $this->request('GET', '/user/' . $userId . '/webhooks', []);
     }
 
     public function subscribeWebhook(string $event, string $callbackUri): array

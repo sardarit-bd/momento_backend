@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('tgc_shipment_id')->unique();
             $table->string('tracking_number')->nullable();
             $table->string('tracking_url')->nullable();
+            $table->string('carrier')->nullable();
             $table->timestamp('shipped_at')->nullable();
             $table->timestamp('notified_at')->nullable();
             $table->json('raw_payload')->nullable();

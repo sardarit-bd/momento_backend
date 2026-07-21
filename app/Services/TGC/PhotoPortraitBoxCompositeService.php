@@ -7,26 +7,18 @@ use Log;
 
 /**
  * Composites the user-uploaded photo portrait box images onto the
- * photo-portrait-box.png template, preserving the exact drag/zoom positions
- * the user set in the frontend (PhotoPortraitBoxPreview).
- *
- * The frontend box preview renders the same zone (top 43% / left 10% /
- * 36% x 42%) and exposes each photo's drag position as resolution-independent
- * fractions (xFraction / yFraction) relative to the photo's own slot frame,
- * plus a plain scale factor (zoom). The backend reproduces the exact same
- * transform math — fraction x the slot's own width/height — so a drag looks
- * identical at print resolution regardless of the breakpoint the user dragged
- * at. No preview-width normalization is needed.
+ * photo-portrait-box.png template, using the ALREADY-RESOLVED geometry the
+ * browser computed for each photo.
  */
 class PhotoPortraitBoxCompositeService
 {
     private const TEMPLATE_PATH = 'tuckbox/photo-portrait-box.png';
 
     /**
-     * @param array $boxImages Each entry: ['src' => base64, 'x_fraction' => float, 'y_fraction' => float, 'zoom' => float]
-     * @param int   $width     Template width (must match photo-portrait-box.png)
-     * @param int   $height    Template height
-     * @return string|null PNG blob, or null when no images supplied
+     * @param array $boxImages 
+     * @param int   $width     
+     * @param int   $height    
+     * @return string|null 
      */
     public function composite(array $boxImages, int $width = 2325, int $height = 1950, ?string $fallbackBlob = null): ?string
     {
@@ -54,10 +46,9 @@ class PhotoPortraitBoxCompositeService
                 continue;
             }
             $clean[] = [
-                'blob'       => $blob,
-                'x_fraction' => (float) ($entry['x_fraction'] ?? $entry['xFraction'] ?? 0),
-                'y_fraction' => (float) ($entry['y_fraction'] ?? $entry['yFraction'] ?? 0),
-                'zoom'       => (float) ($entry['zoom'] ?? 1),
+                'blob'  => $blob,
+                'frame' => $entry['frame'] ?? null,
+                'image' => $entry['image'] ?? null,
             ];
         }
 
@@ -77,35 +68,52 @@ class PhotoPortraitBoxCompositeService
     }
 
     /**
-     * Mirror of PhotoPortraitBoxPreview front-face zone:
-     *   top: 43%, left: 10%, width: 36%, height: 42%
-     * Slots use the same fan-out layout as the frontend getLayout().
-     *
-     * Each photo's drag is stored as xFraction / yFraction — a fraction of the
-     * slot frame's OWN width/height (matching how the frontend CSS
-     * translate(X%) resolves against the slot element). The frame is the fixed
-     * slot rect (slotW x slotH); zoom scales the photo centered inside that
-     * frame, and we clip to the frame first (mirroring overflow:hidden) then
-     * apply the preset inset clip on top.
+     * Convert a {leftFrac, topFrac, widthFrac, heightFrac} rect (fractions of
+     * the outer box container, i.e. of the template) into integer template
+     * pixels. Returns [left, top, width, height].
+     */
+    private function fractionsToPixels(array $rect, int $W, int $H): array
+    {
+        $leftFrac   = (float) ($rect['leftFrac']   ?? 0);
+        $topFrac    = (float) ($rect['topFrac']    ?? 0);
+        $widthFrac  = (float) ($rect['widthFrac']  ?? 0);
+        $heightFrac = (float) ($rect['heightFrac'] ?? 0);
+
+        return [
+            (int) round($leftFrac   * $W),
+            (int) round($topFrac    * $H),
+            max(1, (int) round($widthFrac  * $W)),
+            max(1, (int) round($heightFrac * $H)),
+        ];
+    }
+
+    /**
+     * Draw each photo from its resolved frame/image rects. Array order is the
+     * z-order (earlier = painted first = behind). Every photo is clipped to its
+     * frame rect unconditionally; decorative getLayout() insets are a second,
+     * additional crop applied on top when present.
      */
     private function drawFrontFace($canvas, array $imgs, int $W, int $H): void
     {
-        $zX = (int) ($W * 0.10);
-        $zY = (int) ($H * 0.43);
-        $zW = (int) ($W * 0.36);
-        $zH = (int) ($H * 0.42);
 
-        $total = count($imgs);
-        $layout = $this->getLayout($total);
-
-        // Sort by z so leaders paint last (on top)
-        usort($layout, fn($a, $b) => ($a['z'] ?? 1) <=> ($b['z'] ?? 1));
-
+        $insetByIndex = [];
+        $layout = $this->getLayout(count($imgs));
         foreach ($layout as $slot) {
-            if (!isset($imgs[$slot['i']])) {
+            if (!empty($slot['clip'])) {
+                $insetByIndex[$slot['i'] ?? 0] = $slot['clip'];
+            }
+        }
+
+        foreach ($imgs as $index => $entry) {
+            $frameRect = $entry['frame'];
+            $imageRect = $entry['image'] ?? $entry['frame'];
+            if (!is_array($frameRect) || !is_array($imageRect)) {
                 continue;
             }
-            $entry = $imgs[$slot['i']];
+
+            [$fLeft, $fTop, $fW, $fH] = $this->fractionsToPixels($frameRect, $W, $H);
+            [$iLeft, $iTop, $iW, $iH] = $this->fractionsToPixels($imageRect, $W, $H);
+
             $srcImg = imagecreatefromstring($entry['blob']);
             if (!$srcImg) {
                 continue;
@@ -113,62 +121,43 @@ class PhotoPortraitBoxCompositeService
             imagealphablending($srcImg, true);
             imagesavealpha($srcImg, true);
 
-            $slotW = (int) ($zW * ($slot['size'] ?? 0.55));
-            $slotH = (int) ($slotW * 4 / 3);
-
-            // Slot's un-dragged center / bottom (fraction-based fan position).
-            $cx = (int) ($zX + $zW / 2 + ($slot['x'] / 100) * $zW);
-            $baseLeft = (int) ($cx - $slotW / 2);
-            $draggedLeft = (int) ($baseLeft + $entry['x_fraction'] * $slotW);
-
-            $baseBottom = (int) ($zY + $zH + ($slot['y'] / 100) * $slotH);
-            $draggedBottom = (int) ($baseBottom + $entry['y_fraction'] * $slotH);
-            $draggedTop = (int) ($draggedBottom - $slotH);
-
             $srcW = imagesx($srcImg);
             $srcH = imagesy($srcImg);
 
-            // Zoom scales the photo centered inside the fixed frame rect.
-            $scaledW = (int) ($slotW * ($slot['scale'] ?? 1) * $entry['zoom']);
-            $scaledH = (int) ($slotH * ($slot['scale'] ?? 1) * $entry['zoom']);
-            $scaledX = (int) ($draggedLeft + ($slotW - $scaledW) / 2);
-            $scaledY = (int) ($draggedTop + ($slotH - $scaledH) / 2);
-
-            $scaled = imagecreatetruecolor($scaledW, $scaledH);
+            $scaled = imagecreatetruecolor($iW, $iH);
             imagealphablending($scaled, false);
             imagesavealpha($scaled, true);
             $trans = imagecolorallocatealpha($scaled, 0, 0, 0, 127);
             imagefill($scaled, 0, 0, $trans);
             imagealphablending($scaled, true);
+            imagecopyresampled($scaled, $srcImg, 0, 0, 0, 0, $iW, $iH, $srcW, $srcH);
+            imagedestroy($srcImg);
 
-            // object-fit: cover, top-anchored (objectPosition: top center).
-            imagecopyresampled($scaled, $srcImg, 0, 0, 0, 0, $scaledW, $scaledH, $srcW, $srcH);
-
-            // Clip to the frame rect first (mirrors the slot's overflow:hidden).
-            $frame = imagecreatetruecolor($slotW, $slotH);
+            $frame = imagecreatetruecolor($fW, $fH);
             imagealphablending($frame, false);
             imagesavealpha($frame, true);
             $frameTrans = imagecolorallocatealpha($frame, 0, 0, 0, 127);
             imagefill($frame, 0, 0, $frameTrans);
             imagealphablending($frame, true);
-            imagecopy($frame, $scaled, 0, 0, -$scaledX + $draggedLeft, -$scaledY + $draggedTop, $scaledW, $scaledH);
+
+            $dstX = $iLeft - $fLeft;
+            $dstY = $iTop - $fTop;
+            imagecopy($frame, $scaled, $dstX, $dstY, 0, 0, $iW, $iH);
             imagedestroy($scaled);
             $scaled = $frame;
-            $scaledW = $slotW;
-            $scaledH = $slotH;
+            $scaledW = $fW;
+            $scaledH = $fH;
 
-            // Then apply the preset inset clip on top.
-            if (!empty($slot['clip'])) {
-                $clipped = $this->applyInsetClip($scaled, $scaledW, $scaledH, $slot['clip']);
+            if (!empty($insetByIndex[$index])) {
+                $clipped = $this->applyInsetClip($scaled, $scaledW, $scaledH, $insetByIndex[$index]);
                 imagedestroy($scaled);
                 $scaled = $clipped;
                 $scaledW = imagesx($scaled);
                 $scaledH = imagesy($scaled);
             }
 
-            imagecopy($canvas, $scaled, $draggedLeft, $draggedTop, 0, 0, $scaledW, $scaledH);
+            imagecopy($canvas, $scaled, $fLeft, $fTop, 0, 0, $scaledW, $scaledH);
             imagedestroy($scaled);
-            imagedestroy($srcImg);
         }
     }
 
@@ -236,5 +225,31 @@ class PhotoPortraitBoxCompositeService
         imagealphablending($cropped, true);
         imagecopy($cropped, $img, 0, 0, $left, $top, $newW, $newH);
         return $cropped;
+    }
+
+    /**
+     * Debug helper: returns the actual pixel rects GD will draw for each entry,
+     * recomputed from the resolved fractions, so a saved payload can be diffed
+     * against the frontend-captured rects. Delta should be ~0px modulo rounding.
+     *
+     * @return array<int, array{frame:array,image:array}>
+     */
+    public function debugRects(array $boxImages, int $W = 2325, int $H = 1950): array
+    {
+        $out = [];
+        foreach ($boxImages as $index => $entry) {
+            $frame = $entry['frame'] ?? null;
+            $image = $entry['image'] ?? $entry['frame'] ?? null;
+            if (!is_array($frame) || !is_array($image)) {
+                continue;
+            }
+            [$fL, $fT, $fW, $fH] = $this->fractionsToPixels($frame, $W, $H);
+            [$iL, $iT, $iW, $iH] = $this->fractionsToPixels($image, $W, $H);
+            $out[$index] = [
+                'frame' => ['left' => $fL, 'top' => $fT, 'width' => $fW, 'height' => $fH],
+                'image' => ['left' => $iL, 'top' => $iT, 'width' => $iW, 'height' => $iH],
+            ];
+        }
+        return $out;
     }
 }

@@ -16,13 +16,19 @@ return new class extends Migration
             $table->string('tgc_webhook_event_id')->nullable();
             $table->string('type')->nullable(); // subscribe | unsubscribe | data | test
             $table->string('event')->nullable(); // e.g. ReceiptShipped
-            $table->boolean('signature_valid')->default(false);
+            $table->string('tgc_receipt_id')->nullable();
+            $table->string('dedupe_key')->nullable()->index();
+            $table->boolean('hmac_verified')->default(false);
+            $table->foreignId('matched_order_id')->nullable()->constrained('orders')->nullOnDelete();
+            $table->string('status')->default('received'); // received | processed | unmatched | failed
             $table->json('payload')->nullable();
+            $table->timestamp('received_at')->nullable();
             $table->timestamp('processed_at')->nullable();
             $table->text('error')->nullable();
             $table->timestamps();
 
             $table->index(['event', 'type']);
+            $table->index('status');
         });
     }
 

@@ -47,11 +47,11 @@ return [
         'api_key_id' => env('TGC_API_KEY_ID', env('TGC_API_KEY')),
         'api_key' => env('TGC_API_KEY'),
         'private_key' => env('TGC_PRIVATE_KEY'),
+        'webhook_callback_url' => env('TGC_WEBHOOK_CALLBACK_URL'),
         'username' => env('TGC_USERNAME'),
         'password' => env('TGC_PASSWORD'),
         'designer_id' => env('TGC_DESIGNER_ID'),
         'session_cache_ttl' => env('TGC_SESSION_CACHE_TTL_HOURS', 12),
-        'webhook_callback_url' => env('TGC_WEBHOOK_CALLBACK_URL')
     ],
 
 ];

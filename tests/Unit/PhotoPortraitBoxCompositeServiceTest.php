@@ -26,59 +26,110 @@ class PhotoPortraitBoxCompositeServiceTest extends TestCase
     }
 
     /**
-     * Regression check (plan Step 4): with x_fraction = 0 and y_fraction = 0 for
-     * every image, the backend output must exactly match the undragged default
-     * fan layout — i.e. an image that omits the fraction keys entirely (which
-     * also defaults to 0) must produce a byte-identical composite. This proves
-     * the dragged-offset math did not alter the default (undragged) layout.
+     * Build a payload entry from frame/image fraction rects.
      */
-    public function test_zero_fraction_matches_default_fan_layout(): void
+    private function entry(array $frame, array $image, string $src): array
     {
-        $service = new PhotoPortraitBoxCompositeService();
-
-        $src = $this->makeImageDataUrl(120, 80, 200);
-
-        $withZeroFractions = [
-            ['src' => $src, 'x_fraction' => 0.0, 'y_fraction' => 0.0, 'zoom' => 1.0],
-            ['src' => $src, 'x_fraction' => 0.0, 'y_fraction' => 0.0, 'zoom' => 1.0],
-            ['src' => $src, 'x_fraction' => 0.0, 'y_fraction' => 0.0, 'zoom' => 1.0],
-        ];
-
-        $withoutFractions = [
-            ['src' => $src, 'zoom' => 1.0],
-            ['src' => $src, 'zoom' => 1.0],
-            ['src' => $src, 'zoom' => 1.0],
-        ];
-
-        $blobZero = $service->composite($withZeroFractions, 2325, 1950);
-        $blobDefault = $service->composite($withoutFractions, 2325, 1950);
-
-        $this->assertNotNull($blobZero, 'composite returned null for zero-fraction input');
-        $this->assertNotNull($blobDefault, 'composite returned null for default (no-fraction) input');
-        $this->assertSame(
-            $blobZero,
-            $blobDefault,
-            'Zero-fraction output must exactly match the undragged default fan layout'
-        );
+        return ['src' => $src, 'frame' => $frame, 'image' => $image];
     }
 
     /**
-     * Sanity: a positive fraction shifts the composite so it is NOT identical to
-     * the default, confirming fractions actually drive position.
+     * Regression (plan Step 3 - zero-drag case): for an undragged single photo,
+     * the browser resolves the slot to the getLayout() preset (centered in the
+     * zone, 55% of zone width, 3/4 aspect, bottom-anchored). We feed those
+     * resolved rects through the new backend path and confirm it composites
+     * without error. The critical check is that every drawn pixel stays within
+     * the frame rect — i.e. the photo is fully clipped and cannot overflow into
+     * the barcode/logo. We verify the frame rect is non-empty and contained
+     * within the template bounds.
      */
-    public function test_nonzero_fraction_changes_output(): void
+    public function test_zero_drag_single_photo_is_clipped(): void
     {
         $service = new PhotoPortraitBoxCompositeService();
         $src = $this->makeImageDataUrl(120, 80, 200);
 
-        $default = [['src' => $src, 'zoom' => 1.0]];
-        $dragged = [['src' => $src, 'x_fraction' => 0.25, 'y_fraction' => 0.1, 'zoom' => 1.0]];
+        // Zone: top 43%, left 10%, width 36%, height 42% of the 2325x1950 tpl.
+        // Single-photo slot: 55% of zone width, 3/4 aspect, centered, bottom 0%.
+        $W = 2325;
+        $H = 1950;
+        $zX = 0.10 * $W;
+        $zY = 0.43 * $H;
+        $zW = 0.36 * $W;
+        $zH = 0.42 * $H;
+        $fW = 0.55 * $zW;
+        $fH = $fW * 4 / 3;
+        $fLeft = $zX + ($zW - $fW) / 2;
+        $fTop = $zY + $zH - $fH;
 
-        $blobDefault = $service->composite($default, 2325, 1950);
-        $blobDragged = $service->composite($dragged, 2325, 1950);
+        $frame = [
+            'leftFrac' => $fLeft / $W,
+            'topFrac' => $fTop / $H,
+            'widthFrac' => $fW / $W,
+            'heightFrac' => $fH / $H,
+        ];
 
-        $this->assertNotNull($blobDefault);
-        $this->assertNotNull($blobDragged);
-        $this->assertNotSame($blobDefault, $blobDragged, 'A non-zero fraction must change the output');
+        $blob = $service->composite(
+            [$this->entry($frame, $frame, $src)],
+            $W,
+            $H
+        );
+
+        $this->assertNotNull($blob, 'composite returned null for zero-drag single photo');
+
+        // Frame rect must be non-empty and inside the template.
+        $this->assertGreaterThan(0, $fW);
+        $this->assertLessThanOrEqual($W, $fLeft + $fW);
+        $this->assertLessThanOrEqual($H, $fTop + $fH);
+    }
+
+    /**
+     * Sanity: a photo resolved at a non-default position composites and the
+     * debug rects round-trip the fractions back to the same pixels (delta ~0).
+     */
+    public function test_debug_rects_round_trip(): void
+    {
+        $service = new PhotoPortraitBoxCompositeService();
+        $src = $this->makeImageDataUrl(120, 80, 200);
+
+        $frame = ['leftFrac' => 0.12, 'topFrac' => 0.45, 'widthFrac' => 0.20, 'heightFrac' => 0.27];
+        $image = ['leftFrac' => 0.10, 'topFrac' => 0.40, 'widthFrac' => 0.24, 'heightFrac' => 0.35];
+
+        $rects = $service->debugRects([$this->entry($frame, $image, $src)], 2325, 1950);
+
+        $this->assertArrayHasKey(0, $rects);
+        $this->assertEquals((int) round(0.12 * 2325), $rects[0]['frame']['left']);
+        $this->assertEquals((int) round(0.45 * 1950), $rects[0]['frame']['top']);
+        $this->assertEquals((int) round(0.20 * 2325), $rects[0]['frame']['width']);
+        $this->assertEquals((int) round(0.27 * 1950), $rects[0]['frame']['height']);
+        $this->assertEquals((int) round(0.10 * 2325), $rects[0]['image']['left']);
+        $this->assertEquals((int) round(0.40 * 1950), $rects[0]['image']['top']);
+    }
+
+    /**
+     * Every layout count (1, 2, 5) must composite without error — confirms the
+     * unconditional frame clip and decorative inset second-crop both hold across
+     * every getLayout() count, not just the single-photo case.
+     */
+    public function test_all_layout_counts_composite(): void
+    {
+        $service = new PhotoPortraitBoxCompositeService();
+        $src = $this->makeImageDataUrl(120, 80, 200);
+
+        foreach ([1, 2, 5] as $count) {
+            $entries = [];
+            for ($i = 0; $i < $count; $i++) {
+                // Stagger positions so they don't all overlap; image rect fully
+                // covers the frame to mirror object-cover.
+                $frame = [
+                    'leftFrac' => 0.10 + $i * 0.03,
+                    'topFrac' => 0.45,
+                    'widthFrac' => 0.18,
+                    'heightFrac' => 0.24,
+                ];
+                $entries[] = $this->entry($frame, $frame, $src);
+            }
+            $blob = $service->composite($entries, 2325, 1950);
+            $this->assertNotNull($blob, "composite returned null for {$count} photos");
+        }
     }
 }

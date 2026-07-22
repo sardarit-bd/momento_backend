@@ -3,14 +3,13 @@
 namespace App\Services\TGC;
 
 use App\Exceptions\TGC\TGCAuthException;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
 class TGCSessionManager
 {
     private const CACHE_KEY = 'tgc_session_id';
+
     private const USER_CACHE_KEY = 'tgc_user_id';
 
     public function getSessionId(): string
@@ -75,7 +74,7 @@ class TGCSessionManager
             ?? data_get($response->json(), 'session_id')
             ?? ''
         );
-        $userId    = (string) (
+        $userId = (string) (
             data_get($response->json(), 'result.user_id')
             ?? data_get($response->json(), 'user_id')
             ?? ''

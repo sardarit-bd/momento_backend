@@ -11,9 +11,7 @@ use App\Services\TGC\TGCService;
 
 class AddressController extends Controller
 {
-    public function __construct(private readonly CreateAddressAction $createAddressAction)
-    {
-    }
+    public function __construct(private readonly CreateAddressAction $createAddressAction) {}
 
     public function store(CreateAddressRequest $request)
     {
@@ -25,6 +23,7 @@ class AddressController extends Controller
     public function show(string $addressId)
     {
         $payload = app(TGCService::class)->getAddress($addressId);
+
         return (new AddressResource($payload))->response();
     }
 }

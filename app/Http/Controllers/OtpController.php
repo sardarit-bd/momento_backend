@@ -33,25 +33,22 @@ class OtpController extends Controller
             ]);
         }
 
-
-
-
         return response()->json([
             'success' => true,
             'status' => 200,
             'message' => 'OTP sent successfully',
-            'data' => ['otp' => "Check Your Email"],
+            'data' => ['otp' => 'Check Your Email'],
         ]);
     }
 
-        /**
+    /**
      * Step 2: Verify OTP
      */
     public function verifyOtp(Request $request)
     {
         $request->validate([
             'email' => 'required|email|exists:users,email',
-            'otp'   => 'required|numeric',
+            'otp' => 'required|numeric',
         ]);
 
         $user = User::where('email', $request->email)->first();
@@ -59,7 +56,7 @@ class OtpController extends Controller
         if ($user->otp != $request->otp) {
             return response()->json([
                 'success' => false,
-                'status'  => 400,
+                'status' => 400,
                 'message' => 'Invalid OTP',
             ], 400);
         }
@@ -69,37 +66,37 @@ class OtpController extends Controller
 
         return response()->json([
             'success' => true,
-            'status'  => 200,
+            'status' => 200,
             'message' => 'OTP verified successfully',
         ]);
     }
 
-
-     public function resetPassword(Request $request)
+    public function resetPassword(Request $request)
     {
         $request->validate([
-            'email'    => 'required|email|exists:users,email',
+            'email' => 'required|email|exists:users,email',
             'password' => 'required|min:6',
         ]);
-
 
         // Update password
         $user = User::where('email', $request->email)->first();
 
         if ($user->otp_varified == true) {
 
-        $user->password = Hash::make($request->password);
-        $user->otp_varified = false;
-        $user->save();
-        return response()->json([
-            'success' => true,
-            'status'  => 200,
-            'message' => 'Password reset successfully',
-        ]);
+            $user->password = Hash::make($request->password);
+            $user->otp_varified = false;
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'status' => 200,
+                'message' => 'Password reset successfully',
+            ]);
         }
+
         return response()->json([
             'success' => false,
-            'status'  => 401,
+            'status' => 401,
             'message' => 'Password reset failed',
         ]);
     }

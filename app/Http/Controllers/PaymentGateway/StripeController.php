@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers\PaymentGateway;
 
-use App\Models\Order;
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use App\Models\Order;
 use App\Services\PaymentGateway\StripeGatewayService;
-
+use Illuminate\Http\Request;
 
 class StripeController extends Controller
 {
@@ -17,12 +16,10 @@ class StripeController extends Controller
         $this->stripeGatewayService = $stripeGatewayService;
     }
 
-
     public function createCheckoutSession(Request $request)
     {
         return $this->stripeGatewayService->createCheckoutSession($request);
     }
-    
 
     public function success(Request $request)
     {
@@ -32,7 +29,6 @@ class StripeController extends Controller
             'session_id' => $request->session_id,
         ]);
     }
-
 
     public function cancel(Request $request)
     {
@@ -50,14 +46,14 @@ class StripeController extends Controller
                 if ($payment) {
                     $payment->update([
                         'status' => 'pending',
-                        'notes'  => 'Payment canceled by user during Stripe checkout.',
+                        'notes' => 'Payment canceled by user during Stripe checkout.',
                     ]);
                 }
             }
         }
 
         return response()->json([
-            'status'  => 'canceled',
+            'status' => 'canceled',
             'message' => 'Payment has been canceled. Your order is still saved and can be retried within 24 hours.',
         ]);
     }

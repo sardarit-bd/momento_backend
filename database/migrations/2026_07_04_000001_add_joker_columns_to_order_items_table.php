@@ -12,11 +12,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('order_items', function (Blueprint $table) {
-            if (!Schema::hasColumn('order_items', 'has_joker')) {
+            if (! Schema::hasColumn('order_items', 'has_joker')) {
                 $table->boolean('has_joker')->default(false)->after('price');
             }
 
-            if (!Schema::hasColumn('order_items', 'addon_amount')) {
+            if (! Schema::hasColumn('order_items', 'addon_amount')) {
                 $table->decimal('addon_amount', 10, 2)->default(0)->after('has_joker');
             }
         });

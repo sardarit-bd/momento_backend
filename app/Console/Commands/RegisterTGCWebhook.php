@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 class RegisterTGCWebhook extends Command
 {
     protected $signature = 'tgc:webhook:register {event=ReceiptShipped}';
+
     protected $description = 'Register a TGC webhook subscription for the given event if not already subscribed';
 
     public function handle(TGCService $tgc): int
@@ -17,6 +18,7 @@ class RegisterTGCWebhook extends Command
 
         if (! $callbackUri) {
             $this->error('TGC_WEBHOOK_CALLBACK_URL is not set in .env');
+
             return self::FAILURE;
         }
 
@@ -27,7 +29,8 @@ class RegisterTGCWebhook extends Command
                 && data_get($hook, 'callback_uri') === $callbackUri);
 
         if ($existing) {
-            $this->info("Already registered. Webhook id: " . data_get($existing, 'id'));
+            $this->info('Already registered. Webhook id: '.data_get($existing, 'id'));
+
             return self::SUCCESS;
         }
 
@@ -35,6 +38,7 @@ class RegisterTGCWebhook extends Command
         $webhookId = data_get($response, 'result.id') ?? data_get($response, 'id');
 
         $this->info("Subscribed successfully. Webhook id: {$webhookId}");
+
         return self::SUCCESS;
     }
 }

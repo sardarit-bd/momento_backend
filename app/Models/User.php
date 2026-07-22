@@ -52,12 +52,12 @@ class User extends Authenticatable implements JWTSubject
         ];
     }
 
-
-    //table relations
+    // table relations
     public function orders()
     {
         return $this->hasMany(Order::class);
     }
+
     public function preOrderMappers()
     {
         return $this->hasMany(PreOrderMapper::class);

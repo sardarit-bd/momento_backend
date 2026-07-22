@@ -11,8 +11,8 @@ use App\DTOs\TGC\CreateCardFromFaceDTO;
 use App\DTOs\TGC\ProofCardDTO;
 use App\DTOs\TGC\UploadFileDTO;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\TGC\CreateCardRequest;
 use App\Http\Requests\TGC\CreateCardFromFaceRequest;
+use App\Http\Requests\TGC\CreateCardRequest;
 use App\Http\Requests\TGC\ProofCardRequest;
 use App\Http\Resources\TGC\CardResource;
 
@@ -23,8 +23,7 @@ class CardController extends Controller
         private readonly CreateCardAction $createCardAction,
         private readonly CreateCardFromFaceAction $createCardFromFaceAction,
         private readonly ProofCardAction $proofCardAction,
-    ) {
-    }
+    ) {}
 
     public function store(CreateCardRequest $request, string $deckId)
     {

@@ -2,6 +2,7 @@
 
 namespace App\Jobs\TGC;
 
+use App\Events\OrderShipmentCreated;
 use App\Models\Order;
 use App\Models\OrderShipment;
 use App\Models\TGCWebhookLog;
@@ -96,7 +97,7 @@ class ProcessTGCReceiptShippedJob implements ShouldQueue
             );
 
             if ($shipment->wasRecentlyCreated && ! $shipment->notified_at) {
-                $this->notifyCustomerOfShipment($shipment);
+                event(new OrderShipmentCreated($shipment));
             }
         }
 

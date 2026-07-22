@@ -17,8 +17,7 @@ class CartController extends Controller
         private readonly CreateCartAction $createCartAction,
         private readonly AddSkuToCartAction $addSkuToCartAction,
         private readonly TGCService $tgcService,
-    ) {
-    }
+    ) {}
 
     public function items(string $cartId)
     {

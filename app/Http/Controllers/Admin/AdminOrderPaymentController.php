@@ -2,34 +2,33 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderHasPaid;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 
 class AdminOrderPaymentController extends Controller
 {
     /**
      * Diplay payments for a specific order
-    */
+     */
     // AdminOrderController.php or similar
     public function payments($id)
     {
         $order = Order::findOrFail($id);
         $payments = $order->orderHasPaids()->latest()->get();
 
-        if (!$payments) {
+        if (! $payments) {
             return response()->json([
                 'success' => false,
-                'message' => 'No payments found for this order'
+                'message' => 'No payments found for this order',
             ], 404);
         }
 
         return response()->json([
-            'data' => $payments
+            'data' => $payments,
         ]);
     }
-
 
     public function updateStatus(OrderHasPaid $orderHasPaid, Request $request)
     {
@@ -46,5 +45,4 @@ class AdminOrderPaymentController extends Controller
             'data' => $orderHasPaid->fresh(),
         ]);
     }
-
 }

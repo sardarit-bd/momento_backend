@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class SkinTone extends Model
 {
     protected $table = 'skin_tones';
+
     protected $fillable = [
         'name',
         'image',

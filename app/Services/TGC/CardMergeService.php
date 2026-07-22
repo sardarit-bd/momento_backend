@@ -4,13 +4,13 @@ namespace App\Services\TGC;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Log;
 
 class CardMergeService
 {
     private const BASE_CARDS_PATH = 'cards';
-    private const TEMP_BASE_PATH  = 'temp';
+
+    private const TEMP_BASE_PATH = 'temp';
 
     // All 54 base card filenames in order
     private const BASE_CARD_NAMES = [
@@ -98,7 +98,7 @@ class CardMergeService
      * Temp files are created for custom cards — caller must cleanup using the jobId.
      *
      * @param  UploadedFile[]  $customCards  Keyed or unkeyed array of uploaded files
-     * @param  string          $jobId        Used to namespace temp files
+     * @param  string  $jobId  Used to namespace temp files
      * @return array{paths: string[], tempDir: string}
      */
     public function merge(array $customCards, string $jobId): array
@@ -107,10 +107,10 @@ class CardMergeService
         $cardMap = $this->buildBaseCardMap();
 
         // Process each custom card
-        $tempDir = self::TEMP_BASE_PATH . '/' . $jobId;
+        $tempDir = self::TEMP_BASE_PATH.'/'.$jobId;
 
         foreach ($customCards as $uploadedFile) {
-            $originalName  = $uploadedFile->getClientOriginalName();
+            $originalName = $uploadedFile->getClientOriginalName();
             $targetFilename = $this->resolveTargetFilename($originalName);
 
             if ($targetFilename === null) {
@@ -125,12 +125,12 @@ class CardMergeService
 
         // Build final ordered 54-card array
         $orderedPaths = array_map(
-            fn(string $name) => $cardMap[$name],
+            fn (string $name) => $cardMap[$name],
             self::BASE_CARD_NAMES
         );
 
         return [
-            'paths'   => $orderedPaths,   // 54 absolute paths in order
+            'paths' => $orderedPaths,   // 54 absolute paths in order
             'tempDir' => $tempDir,        // for cleanup after job
         ];
     }
@@ -139,26 +139,28 @@ class CardMergeService
     {
         try {
             $cardMap = $this->buildBaseCardMap();
-            $tempDir = self::TEMP_BASE_PATH . '/' . $jobId;
+            $tempDir = self::TEMP_BASE_PATH.'/'.$jobId;
 
             foreach ($customFilePaths as $absolutePath) {
-                $originalName   = basename($absolutePath);
+                $originalName = basename($absolutePath);
                 $targetFilename = $this->resolveTargetFilename($originalName);
 
-                if ($targetFilename === null) continue;
+                if ($targetFilename === null) {
+                    continue;
+                }
 
                 $contents = file_get_contents($absolutePath);
-                Storage::disk('local')->put($tempDir . '/' . $targetFilename, $contents);
-                $cardMap[$targetFilename] = Storage::disk('local')->path($tempDir . '/' . $targetFilename);
+                Storage::disk('local')->put($tempDir.'/'.$targetFilename, $contents);
+                $cardMap[$targetFilename] = Storage::disk('local')->path($tempDir.'/'.$targetFilename);
             }
 
             $orderedPaths = array_map(
-                fn(string $name) => $cardMap[$name],
+                fn (string $name) => $cardMap[$name],
                 self::BASE_CARD_NAMES
             );
 
             return [
-                'paths'   => $orderedPaths,
+                'paths' => $orderedPaths,
                 'tempDir' => $tempDir,
             ];
 
@@ -205,10 +207,10 @@ class CardMergeService
         $map = [];
 
         foreach (self::BASE_CARD_NAMES as $name) {
-            $relativePath = self::BASE_CARDS_PATH . '/' . $name;
+            $relativePath = self::BASE_CARDS_PATH.'/'.$name;
             $absolutePath = Storage::disk('local')->path($relativePath);
 
-            if (!file_exists($absolutePath)) {
+            if (! file_exists($absolutePath)) {
                 throw new \RuntimeException("Base card missing: {$name}");
             }
 

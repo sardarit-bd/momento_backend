@@ -15,9 +15,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('order_item_id')->constrained('order_items')->onDelete('cascade');
             $table->enum('card_side', ['ace', 'king', 'queen', 'jack', 'joker', 'front', 'back']);
-            $table->string('composite_image_path');  
-            $table->string('composite_image_url')->nullable(); 
-            $table->unsignedInteger('width')->default(750);  
+            $table->string('composite_image_path');
+            $table->string('composite_image_url')->nullable();
+            $table->unsignedInteger('width')->default(750);
             $table->unsignedInteger('height')->default(1050);
             $table->timestamps();
         });

@@ -13,19 +13,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('order_items', function (Blueprint $table) {
-            if (!Schema::hasColumn('order_items', 'price')) {
+            if (! Schema::hasColumn('order_items', 'price')) {
                 $table->decimal('price', 10, 2)->default(0)->after('quantity');
             }
 
-            if (!Schema::hasColumn('order_items', 'customization_mode')) {
+            if (! Schema::hasColumn('order_items', 'customization_mode')) {
                 $table->enum('customization_mode', ['none', 'trading', 'deck'])->default('none')->after('price');
             }
 
-            if (!Schema::hasColumn('order_items', 'card_design_count')) {
+            if (! Schema::hasColumn('order_items', 'card_design_count')) {
                 $table->unsignedTinyInteger('card_design_count')->default(0)->after('customization_mode');
             }
 
-            if (!Schema::hasColumn('order_items', 'customization_images')) {
+            if (! Schema::hasColumn('order_items', 'customization_images')) {
                 $table->json('customization_images')->nullable()->after('card_design_count');
             }
         });

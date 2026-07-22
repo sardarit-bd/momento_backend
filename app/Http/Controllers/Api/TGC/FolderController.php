@@ -10,9 +10,7 @@ use App\Http\Resources\TGC\FolderResource;
 
 class FolderController extends Controller
 {
-    public function __construct(private readonly CreateFolderAction $createFolderAction)
-    {
-    }
+    public function __construct(private readonly CreateFolderAction $createFolderAction) {}
 
     public function store(CreateFolderRequest $request)
     {

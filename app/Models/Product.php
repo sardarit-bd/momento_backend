@@ -110,7 +110,7 @@ class Product extends Model
                 return [
                     'id' => $item->id,
                     'name' => $item->name,
-                    'image' => $item->image ? asset('storage/' . $item->image) : null,
+                    'image' => $item->image ? asset('storage/'.$item->image) : null,
                     'card_type' => $item->card_type ?? null,
                 ];
             })->toArray();
@@ -124,11 +124,9 @@ class Product extends Model
     public function getImageUrlAttribute()
     {
         if ($this->image) {
-            return asset('storage/' . $this->image);
+            return asset('storage/'.$this->image);
         }
+
         return null;
     }
-
-
-
 }

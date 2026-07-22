@@ -16,7 +16,7 @@ class RoleCheck
      */
     public function handle(Request $request, Closure $next, string $roles): Response
     {
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             return abort(401);
         }
 
@@ -24,10 +24,10 @@ class RoleCheck
 
         $rolesArray = explode(',', $roles);
 
-        if (!in_array($user->role, $rolesArray)) {
+        if (! in_array($user->role, $rolesArray)) {
             return abort(403, 'Unauthorized access.');
         }
-        
+
         return $next($request);
     }
 }

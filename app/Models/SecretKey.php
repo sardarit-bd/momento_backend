@@ -2,15 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Crypt;
 
 class SecretKey extends Model
 {
     protected $fillable = [
         'stripe_publishable_key',
-        'stripe_secret_key', 
+        'stripe_secret_key',
         'stripe_webhook_key',
         'is_active',
     ];
@@ -23,7 +23,9 @@ class SecretKey extends Model
 
     public function getValueAttribute($value)
     {
-        if (is_null($value)) return null;
+        if (is_null($value)) {
+            return null;
+        }
 
         try {
             return Crypt::decryptString($value);

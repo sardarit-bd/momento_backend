@@ -14,7 +14,7 @@ class SecretManager
             ->first()?->value;
     }
 
-    public static function set(string $name, string $value, string $environment = 'production', string $description = null)
+    public static function set(string $name, string $value, string $environment = 'production', ?string $description = null)
     {
         SecretKey::updateOrCreate(
             ['name' => $name, 'environment' => $environment],

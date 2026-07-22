@@ -22,7 +22,7 @@ class TradingCardOrderController extends Controller
             'product_slug' => $validated['product_slug'],
             'package_slug' => $package->slug,
             'template_id' => $validated['template_id'],
-            'price_cents' => $package->price_cents, 
+            'price_cents' => $package->price_cents,
         ]);
 
         return response()->json($order, 201);

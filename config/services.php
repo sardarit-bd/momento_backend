@@ -41,7 +41,6 @@ return [
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
 
-
     'tgc' => [
         'base_url' => env('TGC_BASE_URL', 'https://www.thegamecrafter.com/api'),
         'api_key_id' => env('TGC_API_KEY_ID', env('TGC_API_KEY')),

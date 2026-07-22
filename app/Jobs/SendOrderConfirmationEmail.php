@@ -20,9 +20,7 @@ class SendOrderConfirmationEmail implements ShouldQueue
 
     public int $tries = 3;
 
-    public function __construct(public Order $order)
-    {
-    }
+    public function __construct(public Order $order) {}
 
     public function handle(): void
     {

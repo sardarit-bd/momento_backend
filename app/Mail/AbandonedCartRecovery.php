@@ -15,6 +15,7 @@ class AbandonedCartRecovery extends Mailable implements ShouldQueue
     use Queueable, SerializesModels;
 
     public $order;
+
     public $recoveryUrl;
 
     /**

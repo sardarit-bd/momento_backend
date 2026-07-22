@@ -10,9 +10,7 @@ use App\Http\Resources\TGC\FileResource;
 
 class FileController extends Controller
 {
-    public function __construct(private readonly UploadFileAction $uploadFileAction)
-    {
-    }
+    public function __construct(private readonly UploadFileAction $uploadFileAction) {}
 
     public function store(UploadFileRequest $request)
     {

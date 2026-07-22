@@ -5,18 +5,18 @@ namespace App\Http\Controllers\Product;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductHasImage;
+use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Http\UploadedFile;
-use Exception;
 
 class ProductController extends Controller
 {
@@ -26,7 +26,7 @@ class ProductController extends Controller
     private array $customRelations = [
         'skin_tones', 'hairs', 'noses', 'eyes', 'mouths',
         'dresses', 'crowns', 'base_cards', 'beards',
-        'trading_fronts', 'trading_backs'
+        'trading_fronts', 'trading_backs',
     ];
 
     /**
@@ -36,28 +36,28 @@ class ProductController extends Controller
     {
         try {
             $products = Product::with(array_merge(['category', 'images'], $this->customRelations))
-                ->when($request->category_id, fn($q) => $q->where('category_id', $request->category_id))
-                ->when($request->type, fn($q) => $q->where('type', $request->type))
-                ->when(!is_null($request->status), fn($q) => $q->where('status', $request->status === 'true'))
-                ->when($request->search, fn($q) => $q->where('name', 'LIKE', "%{$request->search}%"))
+                ->when($request->category_id, fn ($q) => $q->where('category_id', $request->category_id))
+                ->when($request->type, fn ($q) => $q->where('type', $request->type))
+                ->when(! is_null($request->status), fn ($q) => $q->where('status', $request->status === 'true'))
+                ->when($request->search, fn ($q) => $q->where('name', 'LIKE', "%{$request->search}%"))
                 ->latest()
                 ->paginate($request->get('per_page', 15));
 
             $products->getCollection()->transform(function ($p) {
-                $p->image = $p->image ? asset('storage/' . $p->image) : null;
+                $p->image = $p->image ? asset('storage/'.$p->image) : null;
 
-                $p->gallery_images = $p->images->map(fn($img) => [
+                $p->gallery_images = $p->images->map(fn ($img) => [
                     'id' => $img->id,
-                    'url' => $img->image ? asset('storage/' . $img->image) : null,
+                    'url' => $img->image ? asset('storage/'.$img->image) : null,
                     'alt' => $img->alt ?? null,
                 ])->toArray();
 
                 $customizations = [];
                 foreach ($this->customRelations as $relation) {
-                    $customizations[$relation] = $p->{$relation}?->map(fn($item) => [
+                    $customizations[$relation] = $p->{$relation}?->map(fn ($item) => [
                         'id' => $item->id,
                         'name' => $item->name,
-                        'image' => $item->image ? asset('storage/' . $item->image) : null,
+                        'image' => $item->image ? asset('storage/'.$item->image) : null,
                     ])->toArray() ?? [];
                 }
                 $p->customizations = $customizations;
@@ -67,7 +67,8 @@ class ProductController extends Controller
 
             return $this->successResponse('Products fetched successfully', $products);
         } catch (Exception $e) {
-            \Log::error('Product index failed: ' . $e->getMessage());
+            \Log::error('Product index failed: '.$e->getMessage());
+
             return $this->errorResponse('Failed to fetch products.');
         }
     }
@@ -86,13 +87,13 @@ class ProductController extends Controller
             $product = Product::create($productData);
 
             // Main image
-            if (!empty($validated['image'])) {
+            if (! empty($validated['image'])) {
                 $mainImagePath = $this->saveBase64Image($validated['image'], 'products/main');
                 $product->update(['image' => $mainImagePath]);
             }
 
             // Gallery images
-            if (!empty($validated['images'])) {
+            if (! empty($validated['images'])) {
                 $this->saveGalleryImages($product, $validated['images']);
             }
 
@@ -110,10 +111,12 @@ class ProductController extends Controller
             );
         } catch (ValidationException $e) {
             DB::rollBack();
+
             return $this->validationErrorResponse($e);
         } catch (Exception $e) {
             DB::rollBack();
-            \Log::error('Product create failed: ' . $e->getMessage());
+            \Log::error('Product create failed: '.$e->getMessage());
+
             return $this->errorResponse('Failed to create product.');
         }
     }
@@ -124,7 +127,7 @@ class ProductController extends Controller
      */
     public function cardproduct(Request $request): JsonResponse
     {
-        if (!Auth::check() || Auth::user()->role !== 'Admin') {
+        if (! Auth::check() || Auth::user()->role !== 'Admin') {
             return $this->unauthorizedResponse();
         }
 
@@ -135,7 +138,7 @@ class ProductController extends Controller
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'slug' => 'nullable|string|max:255|unique:products,slug',
-                'type' => 'required|in:simple,customizable,trading,photo', 
+                'type' => 'required|in:simple,customizable,trading,photo',
                 'category_id' => 'required|integer|exists:categories,id',
                 'price' => 'required|numeric|min:0',
                 'offer_price' => 'nullable|numeric|min:0|lt:price',
@@ -149,18 +152,18 @@ class ProductController extends Controller
 
             $validator->after(function ($validator) use ($request) {
                 $mainImage = $request->input('image', $request->file('image'));
-                if (!is_null($mainImage) && !$this->isValidImageInput($mainImage)) {
+                if (! is_null($mainImage) && ! $this->isValidImageInput($mainImage)) {
                     $validator->errors()->add('image', 'image must be a base64 string or uploaded file.');
                 }
 
                 foreach ((array) $request->input('images', []) as $index => $img) {
-                    if (!$this->isValidImageInput($img)) {
+                    if (! $this->isValidImageInput($img)) {
                         $validator->errors()->add("images.$index", 'Each images item must be a base64 string or uploaded file.');
                     }
                 }
 
                 foreach ($request->file('images', []) as $index => $file) {
-                    if (!$this->isValidImageInput($file)) {
+                    if (! $this->isValidImageInput($file)) {
                         $validator->errors()->add("images.$index", 'Each images item must be a base64 string or uploaded file.');
                     }
                 }
@@ -183,10 +186,10 @@ class ProductController extends Controller
 
             DB::beginTransaction();
 
-            $slug = !empty($validated['slug'])
+            $slug = ! empty($validated['slug'])
                 ? Str::slug($validated['slug'])
                 : Str::slug($validated['name']);
-            $slug = $slug . '-' . random_int(1000, 9999);
+            $slug = $slug.'-'.random_int(1000, 9999);
             $normalizedStatus = $this->normalizeProductStatus($validated['status'] ?? null);
 
             $product = Product::create([
@@ -202,7 +205,7 @@ class ProductController extends Controller
             ]);
 
             $mainImageInput = $request->file('image') ?: ($validated['image'] ?? null);
-            if (!empty($mainImageInput)) {
+            if (! empty($mainImageInput)) {
                 $mainImagePath = $this->saveImageInput($mainImageInput, 'products/main');
                 $storedPaths[] = $mainImagePath;
                 $product->update(['image' => $mainImagePath]);
@@ -235,6 +238,7 @@ class ProductController extends Controller
             );
         } catch (ValidationException $e) {
             DB::rollBack();
+
             return $this->validationErrorResponse($e);
         } catch (Exception $e) {
             DB::rollBack();
@@ -288,70 +292,70 @@ class ProductController extends Controller
                 'trading_backs',
             ])->where('slug', $slug)->first();
 
-            if (!$product) {
+            if (! $product) {
                 return response()->json([
                     'success' => false,
-                    'status'  => 404,
+                    'status' => 404,
                     'message' => 'Product not found',
                 ], 404);
             }
 
             $data = [
-                'id'                => $product->id,
-                'name'              => $product->name,
-                'slug'              => $product->slug,
-                'type'              => $product->type,
-                'price'             => $product->price,
-                'offer_price'       => $product->offer_price,
-                'status'            => (bool) $product->status,
+                'id' => $product->id,
+                'name' => $product->name,
+                'slug' => $product->slug,
+                'type' => $product->type,
+                'price' => $product->price,
+                'offer_price' => $product->offer_price,
+                'status' => (bool) $product->status,
                 'short_description' => $product->short_description,
-                'description'       => $product->description,
-                'image'             => $product->image_url,
-                'category'          => [
-                    'id'   => $product->category?->id,
+                'description' => $product->description,
+                'image' => $product->image_url,
+                'category' => [
+                    'id' => $product->category?->id,
                     'name' => $product->category?->name,
                 ],
-                'gallery_images' => $product->images->map(fn($img) => [
-                    'id'  => $img->id,
-                    'url' => asset('storage/' . $img->image),
+                'gallery_images' => $product->images->map(fn ($img) => [
+                    'id' => $img->id,
+                    'url' => asset('storage/'.$img->image),
                 ]),
             ];
 
             if ($product->type !== 'simple') {
                 $data['customizations'] = [
                     // base_cards gets special mapping to include card_type
-                    'custom_sets' => $product->base_cards->map(fn($item) => [
-                        'id'        => $item->id,
-                        'image'     => asset('storage/' . $item->image),
+                    'custom_sets' => $product->base_cards->map(fn ($item) => [
+                        'id' => $item->id,
+                        'image' => asset('storage/'.$item->image),
                         'card_type' => $item->card_type,
-                        'name'      => $item->name, 
+                        'name' => $item->name,
                     ])->toArray(),
 
-                    'base_cards' => $product->base_cards->map(fn($item) => [
-                        'id'        => $item->id,
-                        'image'     => asset('storage/' . $item->image),
+                    'base_cards' => $product->base_cards->map(fn ($item) => [
+                        'id' => $item->id,
+                        'image' => asset('storage/'.$item->image),
                         'card_type' => $item->card_type,
-                        'name'      => $item->name,
+                        'name' => $item->name,
                     ])->toArray(),
 
                     // all other layers use the generic mapper
-                    'skin_tones'     => $this->mapLayerImages($product->skin_tones),
-                    'hairs'          => $this->mapLayerImages($product->hairs),
-                    'noses'          => $this->mapLayerImages($product->noses),
-                    'eyes'           => $this->mapLayerImages($product->eyes),
-                    'mouths'         => $this->mapLayerImages($product->mouths),
-                    'dresses'        => $this->mapLayerImages($product->dresses),
-                    'crowns'         => $this->mapLayerImages($product->crowns),
-                    'beards'         => $this->mapLayerImages($product->beards),
+                    'skin_tones' => $this->mapLayerImages($product->skin_tones),
+                    'hairs' => $this->mapLayerImages($product->hairs),
+                    'noses' => $this->mapLayerImages($product->noses),
+                    'eyes' => $this->mapLayerImages($product->eyes),
+                    'mouths' => $this->mapLayerImages($product->mouths),
+                    'dresses' => $this->mapLayerImages($product->dresses),
+                    'crowns' => $this->mapLayerImages($product->crowns),
+                    'beards' => $this->mapLayerImages($product->beards),
                     'trading_fronts' => $this->mapLayerImages($product->trading_fronts),
-                    'trading_backs'  => $this->mapLayerImages($product->trading_backs),
+                    'trading_backs' => $this->mapLayerImages($product->trading_backs),
                 ];
             }
 
             return response()->json([
                 'success' => true,
-                'status'  => 200,
-                'data'    => $data,
+                'status' => 200,
+                'data' => $data,
             ]);
 
         } catch (Exception $e) {
@@ -362,32 +366,34 @@ class ProductController extends Controller
 
     private function mapLayerImages($collection): array
     {
-        if (!$collection || $collection->isEmpty()) return [];
+        if (! $collection || $collection->isEmpty()) {
+            return [];
+        }
 
-        return $collection->map(fn($item) => [
-            'id'    => $item->id,
-            'image' => asset('storage/' . $item->image),
+        return $collection->map(fn ($item) => [
+            'id' => $item->id,
+            'image' => asset('storage/'.$item->image),
         ])->toArray();
     }
 
     public function updateProductStatus(Request $request): JsonResponse
     {
-        if (!Auth::check() || Auth::user()->role !== 'Admin') {
+        if (! Auth::check() || Auth::user()->role !== 'Admin') {
             return $this->unauthorizedResponse();
         }
 
         try {
             $validator = Validator::make($request->all(), [
-                'id'     => 'required|integer|exists:products,id',
+                'id' => 'required|integer|exists:products,id',
                 'status' => 'required|in:0,1',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'status'  => 422,
+                    'status' => 422,
                     'message' => 'Validation failed',
-                    'errors'  => $validator->errors(),
+                    'errors' => $validator->errors(),
                 ], 422);
             }
 
@@ -398,24 +404,23 @@ class ProductController extends Controller
 
             return response()->json([
                 'success' => true,
-                'status'  => 200,
-                'message' => 'Product status updated to ' . $product->status,
-                'data'    => [
-                    'id'     => $product->id,
+                'status' => 200,
+                'message' => 'Product status updated to '.$product->status,
+                'data' => [
+                    'id' => $product->id,
                     'status' => $product->status,
                 ],
             ]);
 
         } catch (Exception $e) {
-            \Log::error('updateProductStatus failed: ' . $e->getMessage(), [
+            \Log::error('updateProductStatus failed: '.$e->getMessage(), [
                 'request_user_id' => Auth::id(),
-                'trace'           => $e->getTraceAsString(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return $this->errorResponse('Failed to update product status.');
         }
     }
-    
 
     private function isValidImageInput($image): bool
     {
@@ -423,7 +428,7 @@ class ProductController extends Controller
             return in_array(strtolower($image->getClientOriginalExtension()), ['jpg', 'jpeg', 'png', 'gif', 'webp']);
         }
 
-        if (!is_string($image) || trim($image) === '') {
+        if (! is_string($image) || trim($image) === '') {
             return false;
         }
 
@@ -434,11 +439,12 @@ class ProductController extends Controller
     {
         if ($image instanceof UploadedFile) {
             $extension = strtolower($image->getClientOriginalExtension()) ?: 'png';
-            if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+            if (! in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
                 $extension = 'png';
             }
 
-            $fileName = time() . '_' . uniqid() . '.' . $extension;
+            $fileName = time().'_'.uniqid().'.'.$extension;
+
             return $image->storeAs($folder, $fileName, 'public');
         }
 
@@ -449,7 +455,7 @@ class ProductController extends Controller
     {
         $normalized = 'active';
 
-        if (!is_null($status) && $status !== '') {
+        if (! is_null($status) && $status !== '') {
             $value = strtolower((string) $status);
 
             if (in_array($value, ['0', 'false', 'inactive'], true)) {
@@ -468,6 +474,7 @@ class ProductController extends Controller
     {
         try {
             $columnType = strtolower((string) Schema::getColumnType('products', 'status'));
+
             return in_array($columnType, ['tinyint', 'smallint', 'mediumint', 'int', 'integer', 'bigint', 'boolean'], true);
         } catch (Exception $e) {
             // If schema introspection fails, keep legacy enum behavior.
@@ -496,7 +503,7 @@ class ProductController extends Controller
      */
     public function update(Request $request, $id): JsonResponse
     {
-        if (!Gate::allows('update-products')) {
+        if (! Gate::allows('update-products')) {
             return $this->unauthorizedResponse();
         }
 
@@ -510,8 +517,10 @@ class ProductController extends Controller
             $product->update($productData);
 
             // Main image
-            if (!empty($validated['image'])) {
-                if ($product->image) Storage::disk('public')->delete($product->image);
+            if (! empty($validated['image'])) {
+                if ($product->image) {
+                    Storage::disk('public')->delete($product->image);
+                }
                 $mainImagePath = $this->saveBase64Image($validated['image'], 'products/main');
                 $product->update(['image' => $mainImagePath]);
             }
@@ -523,7 +532,7 @@ class ProductController extends Controller
                 }
                 $product->images()->delete();
 
-                if (!empty($validated['images'])) {
+                if (! empty($validated['images'])) {
                     $this->saveGalleryImages($product, $validated['images']);
                 }
             }
@@ -541,10 +550,12 @@ class ProductController extends Controller
             );
         } catch (ValidationException $e) {
             DB::rollBack();
+
             return $this->validationErrorResponse($e);
         } catch (Exception $e) {
             DB::rollBack();
-            \Log::error('Product update failed: ' . $e->getMessage());
+            \Log::error('Product update failed: '.$e->getMessage());
+
             return $this->errorResponse('Failed to update product.');
         }
     }
@@ -560,12 +571,18 @@ class ProductController extends Controller
 
             DB::beginTransaction();
 
-            if ($product->image) Storage::disk('public')->delete($product->image);
-            foreach ($product->images as $img) Storage::disk('public')->delete($img->image);
+            if ($product->image) {
+                Storage::disk('public')->delete($product->image);
+            }
+            foreach ($product->images as $img) {
+                Storage::disk('public')->delete($img->image);
+            }
 
             foreach ($this->customRelations as $relation) {
                 foreach ($product->{$relation} as $item) {
-                    if ($item->image) Storage::disk('public')->delete($item->image);
+                    if ($item->image) {
+                        Storage::disk('public')->delete($item->image);
+                    }
                 }
                 $product->{$relation}()->delete();
             }
@@ -577,7 +594,8 @@ class ProductController extends Controller
             return $this->successResponse('Product deleted successfully');
         } catch (Exception $e) {
             DB::rollBack();
-            \Log::error('Product delete failed: ' . $e->getMessage());
+            \Log::error('Product delete failed: '.$e->getMessage());
+
             return $this->errorResponse('Failed to delete product.');
         }
     }
@@ -589,7 +607,7 @@ class ProductController extends Controller
     {
         $rules = [
             'name' => 'required|string|max:255',
-            'slug' => 'nullable|string|unique:products,slug,' . ($productId ?? 'NULL') . ',id',
+            'slug' => 'nullable|string|unique:products,slug,'.($productId ?? 'NULL').',id',
             'type' => 'required|string|in:simple,customizable,trading,photo,Simple,Customizable,Trading,Photo',
             'price' => 'required|numeric|min:0',
             'status' => 'required|in:active,inactive',
@@ -605,7 +623,7 @@ class ProductController extends Controller
         if (in_array($request->type, ['Customizable', 'Trading', 'customizable', 'trading', 'Photo', 'photo'])) {
             foreach ($this->customRelations as $field) {
                 $rules[$field] = 'sometimes|array';
-                $rules[$field . '.*'] = 'sometimes|string';
+                $rules[$field.'.*'] = 'sometimes|string';
             }
         }
 
@@ -619,9 +637,9 @@ class ProductController extends Controller
     {
         return [
             'name' => $validated['name'],
-            'slug' => !empty($validated['slug'])
-                ? $validated['slug'] . '-' . rand(1000, 9999)
-                : Str::slug($validated['name']) . '-' . rand(1000, 9999),
+            'slug' => ! empty($validated['slug'])
+                ? $validated['slug'].'-'.rand(1000, 9999)
+                : Str::slug($validated['name']).'-'.rand(1000, 9999),
             'type' => strtolower($validated['type']),
             'price' => $validated['price'],
             'status' => $validated['status'],
@@ -638,7 +656,7 @@ class ProductController extends Controller
     private function saveGalleryImages(Product $product, array $images): void
     {
         foreach ($images as $img) {
-            if (!empty($img)) {
+            if (! empty($img)) {
                 $path = $this->saveBase64Image($img, 'products/gallery');
                 ProductHasImage::create([
                     'product_id' => $product->id,
@@ -656,19 +674,21 @@ class ProductController extends Controller
         // Handle regular flat layers
         $regularRelations = [
             'skin_tones', 'hairs', 'noses', 'eyes', 'mouths',
-            'dresses', 'crowns', 'beards', 'trading_fronts', 'trading_backs'
+            'dresses', 'crowns', 'beards', 'trading_fronts', 'trading_backs',
         ];
 
         foreach ($regularRelations as $relation) {
             if ($request->has($relation) && is_array($request->$relation)) {
-                if ($isUpdate) $product->{$relation}()->delete();
+                if ($isUpdate) {
+                    $product->{$relation}()->delete();
+                }
 
                 foreach ($request->$relation as $index => $base64) {
                     $path = $this->saveBase64Image($base64, "products/customizations/{$relation}");
                     $product->{$relation}()->create([
-                        'name'       => ucfirst($relation) . ' ' . ($index + 1),
+                        'name' => ucfirst($relation).' '.($index + 1),
                         'product_id' => $product->id,
-                        'image'      => $path,
+                        'image' => $path,
                     ]);
                 }
             }
@@ -676,12 +696,14 @@ class ProductController extends Controller
 
         // Handle base_cards separately — each item has {image, card_type}
         if ($request->has('base_cards') && is_array($request->base_cards)) {
-            if ($isUpdate) $product->base_cards()->delete();
+            if ($isUpdate) {
+                $product->base_cards()->delete();
+            }
 
             foreach ($request->base_cards as $index => $item) {
-                $base64        = is_array($item) ? $item['image']    : $item;
-                $cardType      = is_array($item) ? ($item['card_type']  ?? null) : null;
-                $originalName  = is_array($item) ? ($item['filename']   ?? null) : null;
+                $base64 = is_array($item) ? $item['image'] : $item;
+                $cardType = is_array($item) ? ($item['card_type'] ?? null) : null;
+                $originalName = is_array($item) ? ($item['filename'] ?? null) : null;
 
                 $path = $this->saveBase64Image(
                     $base64,
@@ -690,10 +712,10 @@ class ProductController extends Controller
                 );
 
                 $product->base_cards()->create([
-                    'name'       => $item['name'] ?? $cardType ?? ('Base Card ' . ($index + 1)),
+                    'name' => $item['name'] ?? $cardType ?? ('Base Card '.($index + 1)),
                     'product_id' => $product->id,
-                    'image'      => $path,
-                    'card_type'  => $cardType,
+                    'image' => $path,
+                    'card_type' => $cardType,
                 ]);
             }
         }
@@ -719,20 +741,20 @@ class ProductController extends Controller
             throw new Exception('Invalid base64 image payload');
         }
 
-        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+        if (! in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
             $extension = 'png';
         }
 
         // Use original filename if provided, otherwise generate random
         if ($originalFilename) {
-            $fileName = pathinfo($originalFilename, PATHINFO_FILENAME) . '.' . $extension;
+            $fileName = pathinfo($originalFilename, PATHINFO_FILENAME).'.'.$extension;
         } else {
-            $fileName = time() . '_' . uniqid() . '.' . $extension;
+            $fileName = time().'_'.uniqid().'.'.$extension;
         }
 
-        $filePath = $folder . '/' . $fileName;
+        $filePath = $folder.'/'.$fileName;
 
-        if (!Storage::disk('public')->put($filePath, $decoded)) {
+        if (! Storage::disk('public')->put($filePath, $decoded)) {
             throw new Exception('Failed to save image to storage');
         }
 
@@ -771,13 +793,13 @@ class ProductController extends Controller
             'description' => $product->description,
             'created_at' => $product->created_at->format('Y-m-d H:i:s'),
             'updated_at' => $product->updated_at->format('Y-m-d H:i:s'),
-            'image' => $product->image ? asset('storage/' . $product->image)  : null,
+            'image' => $product->image ? asset('storage/'.$product->image) : null,
         ];
 
         if ($product->relationLoaded('images')) {
-            $data['gallery_images'] = $product->images->map(fn($img) => [
+            $data['gallery_images'] = $product->images->map(fn ($img) => [
                 'id' => $img->id,
-                'url' => asset('storage/' . $img->image),
+                'url' => asset('storage/'.$img->image),
                 'alt' => $product->name,
             ])->toArray();
         }
@@ -795,10 +817,10 @@ class ProductController extends Controller
 
                 $key = $relation === 'base_cards' ? 'custom_sets' : $relation;
 
-                $mapped = $product->{$relation}->map(fn($item) => [
-                    'id'        => $item->id,
-                    'name'      => $item->name,
-                    'image'     => $item->image ? asset('storage/' . $item->image) : null,
+                $mapped = $product->{$relation}->map(fn ($item) => [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'image' => $item->image ? asset('storage/'.$item->image) : null,
                     'card_type' => $item->card_type ?? null,
                 ])->toArray();
 

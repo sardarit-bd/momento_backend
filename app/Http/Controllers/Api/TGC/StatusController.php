@@ -17,15 +17,13 @@ class StatusController extends Controller
      * method(s) this app actually offers at checkout.
      */
     private const SHIPPING_TRANSIT_DAYS = [
-        'standard'   => [5, 8],
+        'standard' => [5, 8],
         'ups_ground' => [3, 6],
-        'ups_2day'   => [2, 2],
-        'overnight'  => [1, 1],
+        'ups_2day' => [2, 2],
+        'overnight' => [1, 1],
     ];
 
-    public function __construct(private readonly TGCService $tgcService)
-    {
-    }
+    public function __construct(private readonly TGCService $tgcService) {}
 
     /**
      * GET /tgc/status/queue
@@ -81,7 +79,7 @@ class StatusController extends Controller
         [$transitMin, $transitMax] = self::SHIPPING_TRANSIT_DAYS[$method] ?? self::SHIPPING_TRANSIT_DAYS['standard'];
 
         return response()->json([
-            'estimated_ship_date'         => $shipDate->toDateString(),
+            'estimated_ship_date' => $shipDate->toDateString(),
             'estimated_delivery_min_date' => $shipDate->copy()->addWeekdays($transitMin)->toDateString(),
             'estimated_delivery_max_date' => $shipDate->copy()->addWeekdays($transitMax)->toDateString(),
         ]);

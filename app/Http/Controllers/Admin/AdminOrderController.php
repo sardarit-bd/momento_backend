@@ -2,21 +2,20 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Controller;
+use App\Http\Resources\OrderResource;
 use App\Models\Order;
-use App\Models\Product;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Auth;
-use App\Http\Resources\OrderResource;
 
 class AdminOrderController extends Controller
 {
     public function index(Request $request)
     {
-     
+
         try {
 
             $orders = Order::with(['orderItems.product', 'user:id,name,email'])
@@ -25,22 +24,20 @@ class AdminOrderController extends Controller
                 })
                 ->latest('id')
                 ->get();
-                
-                
-                return response()->json([
-                'data'=>$orders
-                ]);
+
+            return response()->json([
+                'data' => $orders,
+            ]);
 
         } catch (\Exception $e) {
-    
+
             return $this->errorResponse(
-                'Failed to retrieve orders: ' . $e->getMessage(),
+                'Failed to retrieve orders: '.$e->getMessage(),
                 200
             );
         }
     }
 
-    
     /**
      * Display the specified order.
      */
@@ -58,39 +55,39 @@ class AdminOrderController extends Controller
             return $this->errorResponse('Order not found', 404);
         }
     }
+
     /**
      * Update order status.
      */
     public function update(Request $request, Order $order): JsonResponse
     {
         $request->validate([
-            'name'          => 'sometimes|nullable|string|max:255',
-            'email'         => 'sometimes|nullable|email',
-            'phone'         => 'sometimes|nullable|string|max:20',
-            'address'       => 'sometimes|nullable|string|max:500',
-            'status'        => 'sometimes|nullable|in:pending,completed',
-            'is_paid'       => 'sometimes|boolean',
+            'name' => 'sometimes|nullable|string|max:255',
+            'email' => 'sometimes|nullable|email',
+            'phone' => 'sometimes|nullable|string|max:20',
+            'address' => 'sometimes|nullable|string|max:500',
+            'status' => 'sometimes|nullable|in:pending,completed',
+            'is_paid' => 'sometimes|boolean',
             'is_customized' => 'sometimes|boolean',
 
             // Nested validations
-            'items'                  => 'sometimes|array',
-            'items.*.id'             => 'sometimes|exists:order_items,id',
-            'items.*.product_id'     => 'required_with:items.*|exists:products,id',
-            'items.*.quantity'       => 'required_with:items.*|integer|min:1',
+            'items' => 'sometimes|array',
+            'items.*.id' => 'sometimes|exists:order_items,id',
+            'items.*.product_id' => 'required_with:items.*|exists:products,id',
+            'items.*.quantity' => 'required_with:items.*|integer|min:1',
 
-            'payments'               => 'sometimes|array',
-            'payments.*.id'          => 'sometimes|exists:order_has_paids,id',
-            'payments.*.amount'      => 'sometimes|numeric|min:0',
-            'payments.*.method'      => 'sometimes|string',
-            'payments.*.status'      => 'sometimes|in:pending,completed,failed',
+            'payments' => 'sometimes|array',
+            'payments.*.id' => 'sometimes|exists:order_has_paids,id',
+            'payments.*.amount' => 'sometimes|numeric|min:0',
+            'payments.*.method' => 'sometimes|string',
+            'payments.*.status' => 'sometimes|in:pending,completed,failed',
             'payments.*.transaction_id' => 'nullable|string',
-            'payments.*.notes'       => 'nullable|string',
+            'payments.*.notes' => 'nullable|string',
         ]);
-
 
         try {
             $order->update($request->only([
-                'name','email','phone','address','status','is_paid','is_customized'
+                'name', 'email', 'phone', 'address', 'status', 'is_paid', 'is_customized',
             ]) + ['updated_by' => Auth::user()->id]);
 
             if ($request->has('items')) {
@@ -131,20 +128,19 @@ class AdminOrderController extends Controller
         }
     }
 
-
-    //cancel order
+    // cancel order
     public function orderCancel($id)
     {
         $order = Order::find($id);
 
-        if (!$order) {
+        if (! $order) {
             return $this->errorResponse('Order not found', 404);
         }
 
         if (in_array($order->status, ['canceled', 'completed'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'This order cannot be cancelled.'
+                'message' => 'This order cannot be cancelled.',
             ], 400);
         }
 
@@ -167,21 +163,19 @@ class AdminOrderController extends Controller
                 $data
             );
 
-
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Order cancellation failed: ' . $e->getMessage(), [
+            Log::error('Order cancellation failed: '.$e->getMessage(), [
                 'order_id' => $order->id,
                 'admin_id' => Auth::id(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to cancel order. Please try again.'
+                'message' => 'Failed to cancel order. Please try again.',
             ], 500);
         }
     }
-
 
     /**
      * Return success response.
@@ -192,7 +186,7 @@ class AdminOrderController extends Controller
             'success' => true,
             'status' => $status,
             'message' => $message,
-            'data' => $data
+            'data' => $data,
         ], $status);
     }
 
@@ -207,23 +201,19 @@ class AdminOrderController extends Controller
             'message' => $message,
         ], $status);
     }
-    
-    public function updateStatus(Request $request,$id)
+
+    public function updateStatus(Request $request, $id)
     {
         $order = Order::find($id);
-    
+
         $order->update([
             'status' => 'completed',
         ]);
-    
+
         return response()->json([
             'success' => true,
             'message' => 'Order status updated to completed successfully.',
-            'data'=> $request->all()
+            'data' => $request->all(),
         ], 200);
     }
-
-    
-    
-
 }

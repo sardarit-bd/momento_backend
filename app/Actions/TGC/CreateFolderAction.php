@@ -7,9 +7,7 @@ use App\Services\TGC\TGCService;
 
 class CreateFolderAction
 {
-    public function __construct(private readonly TGCService $service)
-    {
-    }
+    public function __construct(private readonly TGCService $service) {}
 
     public function handle(CreateFolderDTO $dto): array
     {

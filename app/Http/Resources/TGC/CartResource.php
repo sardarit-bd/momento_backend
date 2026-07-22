@@ -10,8 +10,8 @@ class CartResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => data_get($this->resource, 'result.result.id') 
-                ?? data_get($this->resource, 'result.id') 
+            'id' => data_get($this->resource, 'result.result.id')
+                ?? data_get($this->resource, 'result.id')
                 ?? data_get($this->resource, 'id'),
             'status' => data_get($this->resource, 'result.result.payment_status')
                 ?? data_get($this->resource, 'result.status')

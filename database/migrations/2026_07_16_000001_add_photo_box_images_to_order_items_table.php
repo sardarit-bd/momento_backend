@@ -15,7 +15,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('order_items', function (Blueprint $table) {
-            if (!Schema::hasColumn('order_items', 'photo_box_images')) {
+            if (! Schema::hasColumn('order_items', 'photo_box_images')) {
                 $table->json('photo_box_images')->nullable()->after('tuckbox_image_mime');
             }
         });

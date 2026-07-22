@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 class TradingFront extends Model
 {
     protected $table = 'trading_fronts';
-    protected $fillable=[
+
+    protected $fillable = [
         'name',
         'image',
-        'product_id'
+        'product_id',
     ];
 
     public function product()

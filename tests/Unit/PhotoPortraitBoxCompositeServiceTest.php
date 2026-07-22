@@ -22,7 +22,7 @@ class PhotoPortraitBoxCompositeServiceTest extends TestCase
         $raw = ob_get_clean();
         imagedestroy($img);
 
-        return 'data:image/png;base64,' . base64_encode($raw);
+        return 'data:image/png;base64,'.base64_encode($raw);
     }
 
     /**
@@ -45,7 +45,7 @@ class PhotoPortraitBoxCompositeServiceTest extends TestCase
      */
     public function test_zero_drag_single_photo_is_clipped(): void
     {
-        $service = new PhotoPortraitBoxCompositeService();
+        $service = new PhotoPortraitBoxCompositeService;
         $src = $this->makeImageDataUrl(120, 80, 200);
 
         // Zone: top 43%, left 10%, width 36%, height 42% of the 2325x1950 tpl.
@@ -88,7 +88,7 @@ class PhotoPortraitBoxCompositeServiceTest extends TestCase
      */
     public function test_debug_rects_round_trip(): void
     {
-        $service = new PhotoPortraitBoxCompositeService();
+        $service = new PhotoPortraitBoxCompositeService;
         $src = $this->makeImageDataUrl(120, 80, 200);
 
         $frame = ['leftFrac' => 0.12, 'topFrac' => 0.45, 'widthFrac' => 0.20, 'heightFrac' => 0.27];
@@ -112,7 +112,7 @@ class PhotoPortraitBoxCompositeServiceTest extends TestCase
      */
     public function test_all_layout_counts_composite(): void
     {
-        $service = new PhotoPortraitBoxCompositeService();
+        $service = new PhotoPortraitBoxCompositeService;
         $src = $this->makeImageDataUrl(120, 80, 200);
 
         foreach ([1, 2, 5] as $count) {

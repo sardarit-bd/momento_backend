@@ -24,12 +24,12 @@ class OrderItem extends Model
     ];
 
     protected $casts = [
-        'price'                => 'decimal:2',
-        'addon_amount'         => 'decimal:2',
-        'has_joker'            => 'boolean',
-        'card_design_count'    => 'integer',
+        'price' => 'decimal:2',
+        'addon_amount' => 'decimal:2',
+        'has_joker' => 'boolean',
+        'card_design_count' => 'integer',
         'customization_images' => 'array',
-        'photo_box_images'     => 'array',
+        'photo_box_images' => 'array',
     ];
 
     protected $hidden = [

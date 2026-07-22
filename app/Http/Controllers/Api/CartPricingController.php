@@ -8,9 +8,7 @@ use Illuminate\Http\Request;
 
 class CartPricingController extends Controller
 {
-    public function __construct(private CartPriceResolver $resolver)
-    {
-    }
+    public function __construct(private CartPriceResolver $resolver) {}
 
     /**
      * POST /api/cart/price

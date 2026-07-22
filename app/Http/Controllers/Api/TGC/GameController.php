@@ -10,9 +10,7 @@ use App\Http\Resources\TGC\GameResource;
 
 class GameController extends Controller
 {
-    public function __construct(private readonly CreateGameAction $createGameAction)
-    {
-    }
+    public function __construct(private readonly CreateGameAction $createGameAction) {}
 
     public function store(CreateGameRequest $request)
     {

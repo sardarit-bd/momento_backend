@@ -19,7 +19,7 @@ class ReceiptController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $receipt['result'] ?? $receipt,
+            'data' => $receipt['result'] ?? $receipt,
         ]);
     }
 }

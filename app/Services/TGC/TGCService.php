@@ -12,8 +12,8 @@ use App\DTOs\TGC\CreateGameDTO;
 use App\DTOs\TGC\CreateTuckBoxDTO;
 use App\DTOs\TGC\ProofCardDTO;
 use App\DTOs\TGC\UpdateTuckBoxDTO;
-use App\DTOs\TGC\UploadFolderFileDTO;
 use App\DTOs\TGC\UploadFileDTO;
+use App\DTOs\TGC\UploadFolderFileDTO;
 use App\Exceptions\TGC\TGCApiException;
 use App\Exceptions\TGC\TGCAuthException;
 use Illuminate\Http\Client\Response;
@@ -22,9 +22,7 @@ use Illuminate\Support\Facades\Log;
 
 class TGCService
 {
-    public function __construct(private readonly TGCSessionManager $sessionManager)
-    {
-    }
+    public function __construct(private readonly TGCSessionManager $sessionManager) {}
 
     public function createGame(CreateGameDTO $dto): array
     {
@@ -34,7 +32,7 @@ class TGCService
         }
 
         return $this->request('POST', '/game', [
-            'name'        => $dto->name,
+            'name' => $dto->name,
             'designer_id' => $designerId,
         ]);
     }
@@ -109,18 +107,18 @@ class TGCService
     public function createTuckBox(CreateTuckBoxDTO $dto): array
     {
         return $this->request('POST', '/tuckbox', [
-            'name'                => $dto->name,
-            'game_id'             => $dto->gameId,
-            'identity'            => $dto->identity,
-            'outside_id'          => $dto->outsideId,
+            'name' => $dto->name,
+            'game_id' => $dto->gameId,
+            'identity' => $dto->identity,
+            'outside_id' => $dto->outsideId,
             'has_proofed_outside' => $dto->hasProofedOutside,
         ]);
     }
 
     public function updateTuckBox(UpdateTuckBoxDTO $dto): array
     {
-        return $this->request('PUT', '/tuckbox/' . $dto->tuckboxId, [
-            'outside_id'          => $dto->outsideId,
+        return $this->request('PUT', '/tuckbox/'.$dto->tuckboxId, [
+            'outside_id' => $dto->outsideId,
             'has_proofed_outside' => $dto->hasProofedOutside,
         ]);
     }
@@ -129,7 +127,7 @@ class TGCService
     {
         return $this->request('POST', '/cart', [
             'api_key_id' => config('services.tgc.api_key'),
-            'user_id'    => $this->sessionManager->getUserId(),
+            'user_id' => $this->sessionManager->getUserId(),
         ]);
     }
 
@@ -224,21 +222,21 @@ class TGCService
     public function createAddress(CreateAddressDTO $dto): array
     {
         return $this->request('POST', '/address', [
-            'name'         => $dto->name,
-            'company'      => $dto->company,
-            'address1'     => $dto->address1,
-            'address2'     => $dto->address2,
-            'city'         => $dto->city,
-            'state'        => $dto->state,
-            'postal_code'  => $dto->postalCode,
-            'country'      => $dto->country,
+            'name' => $dto->name,
+            'company' => $dto->company,
+            'address1' => $dto->address1,
+            'address2' => $dto->address2,
+            'city' => $dto->city,
+            'state' => $dto->state,
+            'postal_code' => $dto->postalCode,
+            'country' => $dto->country,
             'phone_number' => $dto->phoneNumber,
         ]);
     }
 
     public function getAddress(string $addressId): array
     {
-        return $this->request('GET', '/address/' . $addressId, []);
+        return $this->request('GET', '/address/'.$addressId, []);
     }
 
     public function getCart(string $cartId): array
@@ -261,7 +259,7 @@ class TGCService
         $mimeType = mime_content_type($absoluteImagePath) ?: 'image/jpeg';
 
         return $this->requestMultipart('POST', '/file', [
-            'name'      => $cardName,
+            'name' => $cardName,
             'folder_id' => $folderId,
             'has_proofed' => false,
         ], $absoluteImagePath, basename($absoluteImagePath), $mimeType);
@@ -269,19 +267,19 @@ class TGCService
 
     public function attachUserToCart(string $cartId): array
     {
-        return $this->request('POST', '/cart/' . $cartId . '/user', [
+        return $this->request('POST', '/cart/'.$cartId.'/user', [
             'user_id' => $this->sessionManager->getUserId(),
         ]);
     }
 
     public function payWithShopCredit(string $cartId): array
     {
-        return $this->request('POST', '/cart/' . $cartId . '/payment/shopcredit', []);
+        return $this->request('POST', '/cart/'.$cartId.'/payment/shopcredit', []);
     }
 
     public function fetchReceipt(string $receiptId): array
     {
-        return $this->request('GET', '/receipt/' . $receiptId, []);
+        return $this->request('GET', '/receipt/'.$receiptId, []);
     }
 
     public function getSessionId(): string
@@ -303,17 +301,17 @@ class TGCService
     {
         $userId = $this->sessionManager->getUserId();
 
-        return $this->request('GET', '/user/' . $userId . '/webhooks', []);
+        return $this->request('GET', '/user/'.$userId.'/webhooks', []);
     }
 
     public function subscribeWebhook(string $event, string $callbackUri): array
     {
         return $this->request('POST', '/webhook', [
             'owner_class' => 'User',
-            'owner_id'    => $this->sessionManager->getUserId(),
-            'event'       => $event,
-            'callback_uri'=> $callbackUri,
-            'api_key_id'  => config('services.tgc.api_key_id'),
+            'owner_id' => $this->sessionManager->getUserId(),
+            'event' => $event,
+            'callback_uri' => $callbackUri,
+            'api_key_id' => config('services.tgc.api_key_id'),
         ]);
     }
 }

@@ -12,19 +12,19 @@ class ProfileController extends Controller
     {
         $user = User::find($id);
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
-                'status'  => 404,
+                'status' => 404,
                 'message' => 'User not found',
             ], 404);
         }
 
         return response()->json([
             'success' => true,
-            'status'  => 200,
+            'status' => 200,
             'message' => 'Profile fetched successfully',
-            'data'    => ['user' => $user]
+            'data' => ['user' => $user],
         ], 200);
     }
 
@@ -32,28 +32,28 @@ class ProfileController extends Controller
     {
         $user = User::find($id);
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
-                'status'  => 404,
+                'status' => 404,
                 'message' => 'User not found',
             ], 404);
         }
 
         // Validation
         $validator = Validator::make($request->all(), [
-            'name'     => 'sometimes|string|max:255',
-            'email'    => 'sometimes|email|unique:users,email,' . $user->id,
-            'phone'    => 'sometimes|nullable|string|max:20',
-            'address'  => 'sometimes|nullable|string|max:255',
+            'name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|email|unique:users,email,'.$user->id,
+            'phone' => 'sometimes|nullable|string|max:20',
+            'address' => 'sometimes|nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'status'  => 422,
+                'status' => 422,
                 'message' => 'Validation failed',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -62,9 +62,9 @@ class ProfileController extends Controller
 
         return response()->json([
             'success' => true,
-            'status'  => 200,
+            'status' => 200,
             'message' => 'Profile updated successfully',
-            'data'    => ['user' => $user]
+            'data' => ['user' => $user],
         ], 200);
     }
 }

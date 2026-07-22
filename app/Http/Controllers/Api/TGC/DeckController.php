@@ -10,9 +10,7 @@ use App\Http\Resources\TGC\DeckResource;
 
 class DeckController extends Controller
 {
-    public function __construct(private readonly CreateDeckAction $createDeckAction)
-    {
-    }
+    public function __construct(private readonly CreateDeckAction $createDeckAction) {}
 
     public function store(CreateDeckRequest $request, string $gameId)
     {

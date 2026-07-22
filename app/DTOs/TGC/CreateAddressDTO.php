@@ -40,15 +40,15 @@ readonly class CreateAddressDTO
         }
 
         return new self(
-            name:        self::cap($name),
-            address1:    self::cap($address1),
-            city:        self::cap($city),
-            state:       self::cap($state),
-            postalCode:  self::cap($postalCode, 20),
-            country:     strtoupper(trim($country)),
+            name: self::cap($name),
+            address1: self::cap($address1),
+            city: self::cap($city),
+            state: self::cap($state),
+            postalCode: self::cap($postalCode, 20),
+            country: strtoupper(trim($country)),
             phoneNumber: trim($phoneNumber),
-            company:     $company ? self::cap($company) : null,
-            address2:    $address2 ? self::cap($address2) : null,
+            company: $company ? self::cap($company) : null,
+            address2: $address2 ? self::cap($address2) : null,
         );
     }
 
@@ -56,15 +56,15 @@ readonly class CreateAddressDTO
     public static function fromRequest(Request $request): self
     {
         return self::make(
-            name:        (string) $request->string('name'),
-            address1:    (string) $request->string('address1'),
-            city:        (string) $request->string('city'),
-            state:       (string) $request->string('state'),
-            postalCode:  (string) $request->string('postal_code'),
-            country:     (string) $request->string('country'),
+            name: (string) $request->string('name'),
+            address1: (string) $request->string('address1'),
+            city: (string) $request->string('city'),
+            state: (string) $request->string('state'),
+            postalCode: (string) $request->string('postal_code'),
+            country: (string) $request->string('country'),
             phoneNumber: (string) $request->string('phone_number'),
-            company:     $request->filled('company') ? (string) $request->string('company') : null,
-            address2:    $request->filled('address2') ? (string) $request->string('address2') : null,
+            company: $request->filled('company') ? (string) $request->string('company') : null,
+            address2: $request->filled('address2') ? (string) $request->string('address2') : null,
         );
     }
 

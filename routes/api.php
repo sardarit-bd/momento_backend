@@ -1,119 +1,107 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\OtpController;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\ContactController;
-use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\PreOrderController;
-use App\Http\Controllers\SubscriberController;
-use App\Http\Controllers\Product\ProductController;
 use App\Http\Controllers\Admin\AdminOrderController;
-use App\Http\Controllers\Product\CategoryController;
+use App\Http\Controllers\Admin\AdminOrderPaymentController;
 use App\Http\Controllers\Api\Admin\SecretKeyController;
+use App\Http\Controllers\Api\CartPricingController;
+use App\Http\Controllers\Api\TradingCardPackageController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ContactController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OtpController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentGateway\StripeController;
 use App\Http\Controllers\PaymentGateway\WebhookController;
-use App\Http\Controllers\Admin\AdminOrderPaymentController;
-use App\Http\Controllers\Api\TradingCardPackageController;
-use App\Http\Controllers\Api\CartPricingController;
+use App\Http\Controllers\PreOrderController;
+use App\Http\Controllers\Product\CategoryController;
+use App\Http\Controllers\Product\ProductController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SubscriberController;
 use App\Http\Controllers\TGC\TGCWebhookController;
+use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::post('register', [AuthController::class, 'register']);
-Route::post('login',    [AuthController::class, 'login']);
-Route::post('forgotpass',      [OtpController::class, 'otpSender']);
-Route::post('verify',      [OtpController::class, 'verifyOtp']);
-Route::post('resetpass',      [OtpController::class, 'resetPassword']);
+Route::post('login', [AuthController::class, 'login']);
+Route::post('forgotpass', [OtpController::class, 'otpSender']);
+Route::post('verify', [OtpController::class, 'verifyOtp']);
+Route::post('resetpass', [OtpController::class, 'resetPassword']);
 
-
-//Profile
-Route::get('profile/{id}',[ProfileController::class, 'profile']);
-Route::put('profile/{id}',[ProfileController::class, 'update']);
-
+// Profile
+Route::get('profile/{id}', [ProfileController::class, 'profile']);
+Route::put('profile/{id}', [ProfileController::class, 'update']);
 
 // Protected routes
 Route::middleware('auth:api')->group(function () {
-    Route::get('auth/me',      [AuthController::class, 'me']);
+    Route::get('auth/me', [AuthController::class, 'me']);
     Route::post('auth/logout', [AuthController::class, 'logout']);
-    Route::post('auth/refresh',[AuthController::class, 'refresh']);
+    Route::post('auth/refresh', [AuthController::class, 'refresh']);
 
+    // ======================================================================
+    // ============================Admin can handle==========================
+    // ======================================================================
+    Route::middleware(['auth:api', 'roles:Admin'])->group(function () {
+        Route::apiResource('categories', CategoryController::class);
+        Route::apiResource('products', ProductController::class);
+        Route::post('cardproduct', [ProductController::class, 'cardproduct']);
+        Route::get('cardproduct/{slug}', [ProductController::class, 'showCardProduct']);
 
-//======================================================================
-//============================Admin can handle==========================
-//======================================================================
-Route::middleware(['auth:api', 'roles:Admin'])->group(function () {
-    Route::apiResource('categories',CategoryController::class);
-    Route::apiResource('products',ProductController::class);
-    Route::post('cardproduct', [ProductController::class, 'cardproduct']);
-    Route::get('cardproduct/{slug}', [ProductController::class, 'showCardProduct']);
+        Route::post('updateproduct', [ProductController::class, 'updateProductStatus']);
 
-    Route::post('updateproduct', [ProductController::class, 'updateProductStatus']);
-    
-    Route::resource('orders', AdminOrderController::class)
-        ->only(['index', 'show', 'update']);
-    Route::get('/orders/{order}/cancel', [AdminOrderController::class, 'orderCancel']);
-    
-    // Admin update delivery status 
-    Route::post('/orderupdate/{id}', [AdminOrderController::class, 'updateStatus']);
-    
+        Route::resource('orders', AdminOrderController::class)
+            ->only(['index', 'show', 'update']);
+        Route::get('/orders/{order}/cancel', [AdminOrderController::class, 'orderCancel']);
 
-    // Payment status update  
-    Route::get('/orders/{order}/payments', [AdminOrderPaymentController::class, 'payments']);
-    Route::put('/payment/{orderHasPaid}/status', [AdminOrderPaymentController::class, 'updateStatus']);
+        // Admin update delivery status
+        Route::post('/orderupdate/{id}', [AdminOrderController::class, 'updateStatus']);
 
+        // Payment status update
+        Route::get('/orders/{order}/payments', [AdminOrderPaymentController::class, 'payments']);
+        Route::put('/payment/{orderHasPaid}/status', [AdminOrderPaymentController::class, 'updateStatus']);
 
-    // Secret Key Management
-    Route::get('/secrets', [SecretKeyController::class, 'index'])
-        ->name('secrets.index');
+        // Secret Key Management
+        Route::get('/secrets', [SecretKeyController::class, 'index'])
+            ->name('secrets.index');
 
-    Route::get('/secrets/{secret}', [SecretKeyController::class, 'show'])
-        ->name('secrets.show');
+        Route::get('/secrets/{secret}', [SecretKeyController::class, 'show'])
+            ->name('secrets.show');
 
-    Route::post('/secrets', [SecretKeyController::class, 'store'])
-        ->name('secrets.store');
+        Route::post('/secrets', [SecretKeyController::class, 'store'])
+            ->name('secrets.store');
 
-    Route::put('/secrets/{secret}', [SecretKeyController::class, 'update'])
-        ->name('secrets.update');
+        Route::put('/secrets/{secret}', [SecretKeyController::class, 'update'])
+            ->name('secrets.update');
 
-    Route::delete('/secrets/{secret}', [SecretKeyController::class, 'destroy'])
-        ->name('secrets.destroy');
+        Route::delete('/secrets/{secret}', [SecretKeyController::class, 'destroy'])
+            ->name('secrets.destroy');
 
-    Route::post('/secrets/{secret}/restore', [SecretKeyController::class, 'restore'])
-        ->name('secrets.restore');
-    
-});
+        Route::post('/secrets/{secret}/restore', [SecretKeyController::class, 'restore'])
+            ->name('secrets.restore');
 
-Route::get('subscribers', [SubscriberController::class, 'index']);
+    });
 
+    Route::get('subscribers', [SubscriberController::class, 'index']);
 
+    // ======================================================================
+    // ============================Customer can handle=======================
+    // ======================================================================
 
-//======================================================================
-//============================Customer can handle=======================
-//======================================================================
+    Route::apiResource('preorders', PreOrderController::class);
+    Route::apiResource('customer-orders', OrderController::class);
+    Route::get('/myorders/{id}', [OrderController::class, 'myorders']);
 
-Route::apiResource('preorders', PreOrderController::class);
-Route::apiResource('customer-orders', OrderController::class);
-Route::get('/myorders/{id}',[OrderController::class,'myorders']);
+    // ======================================================================
+    // =========================Contact us===================================
+    // ======================================================================
 
-
-
-
-
-
-//======================================================================
-//=========================Contact us===================================
-//======================================================================
-
-Route::get('contacts', [ContactController::class, 'index']);
-Route::delete('contacts/{id}', [ContactController::class, 'destroy']);
+    Route::get('contacts', [ContactController::class, 'index']);
+    Route::delete('contacts/{id}', [ContactController::class, 'destroy']);
 
 });
 
-//=============================================================
-//====================public routes============================
-//=============================================================
+// =============================================================
+// ====================public routes============================
+// =============================================================
 
 Route::post('contact', [ContactController::class, 'store']);
 Route::get('shop', [ProductController::class, 'index']);
@@ -125,11 +113,9 @@ Route::post('subscribers', [SubscriberController::class, 'store']);
 Route::get('/trading-card/packages', [TradingCardPackageController::class, 'index']);
 Route::post('/cart/price', [CartPricingController::class, 'calculate']);
 
-
-
-//=============================================================
-//====================Stripe Payment===========================
-//=============================================================
+// =============================================================
+// ====================Stripe Payment===========================
+// =============================================================
 Route::post('/checkout', [StripeController::class, 'createCheckoutSession']);
 
 // Stripe Webhook
@@ -144,7 +130,6 @@ Route::middleware('auth:api')->group(function () {
 
 });
 
-
 Route::get('debug/shop/{slug}', function ($slug) {
     $product = \App\Models\Product::where('slug', $slug)
         ->with([
@@ -154,9 +139,9 @@ Route::get('debug/shop/{slug}', function ($slug) {
         ->first();
 
     return response()->json([
-        'product_id'        => $product?->id,
-        'base_cards'        => $product?->base_cards,
-        'base_cards_count'  => $product?->base_cards?->count(),
+        'product_id' => $product?->id,
+        'base_cards' => $product?->base_cards,
+        'base_cards_count' => $product?->base_cards?->count(),
     ]);
 });
 

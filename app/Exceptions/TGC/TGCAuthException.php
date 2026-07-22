@@ -4,6 +4,4 @@ namespace App\Exceptions\TGC;
 
 use Exception;
 
-class TGCAuthException extends Exception
-{
-}
+class TGCAuthException extends Exception {}

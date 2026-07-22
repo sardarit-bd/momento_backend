@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-         Schema::create('trading_card_packages', function (Blueprint $table) {
+        Schema::create('trading_card_packages', function (Blueprint $table) {
             $table->id();
-            $table->string('slug')->unique(); 
-            $table->string('name'); 
-            $table->string('tag')->nullable(); 
+            $table->string('slug')->unique();
+            $table->string('name');
+            $table->string('tag')->nullable();
             $table->string('subtitle')->nullable();
-            $table->unsignedInteger('card_count'); 
+            $table->unsignedInteger('card_count');
             $table->unsignedInteger('price_cents');
             $table->json('features')->nullable();
             $table->boolean('recommended')->default(false);

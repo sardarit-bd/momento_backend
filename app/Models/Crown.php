@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Crown extends Model
 {
     protected $table = 'crowns';
+
     protected $fillable = ['name', 'image', 'product_id'];
 
     public function product()

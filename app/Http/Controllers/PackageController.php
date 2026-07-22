@@ -15,5 +15,4 @@ class PackageController extends Controller
             ])
         );
     }
-
 }

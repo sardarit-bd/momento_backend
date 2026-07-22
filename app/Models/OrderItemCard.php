@@ -36,7 +36,7 @@ class OrderItemCard extends Model
     ];
 
     protected $casts = [
-        'position'         => 'integer',
+        'position' => 'integer',
         'image_size_bytes' => 'integer',
     ];
 

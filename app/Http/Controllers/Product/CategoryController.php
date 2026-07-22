@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Product;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Database\QueryException;
 
 class CategoryController extends Controller
 {
@@ -19,31 +19,32 @@ class CategoryController extends Controller
         try {
             $categories = Category::orderBy('id', 'desc')->get();
 
-        $baseUrl = url('/public');
-        $categories->transform(function ($category) use ($baseUrl) {
-            if (!empty($category->image)) {
-                $category->image =  env('APP_URL').'/public/storage/'.ltrim($category->image, '/');
-            }
-            return $category;
-        });
+            $baseUrl = url('/public');
+            $categories->transform(function ($category) {
+                if (! empty($category->image)) {
+                    $category->image = env('APP_URL').'/public/storage/'.ltrim($category->image, '/');
+                }
+
+                return $category;
+            });
 
             return response()->json([
                 'success' => true,
-                'status'  => 200,
+                'status' => 200,
                 'message' => 'Categories fetched successfully',
-                'data'    => [
-                    'categories' => $categories
-                ]
+                'data' => [
+                    'categories' => $categories,
+                ],
             ], 200);
 
         } catch (\Throwable $e) {
-            \Log::error('Category index failed: ' . $e->getMessage());
+            \Log::error('Category index failed: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Failed to fetch categories',
-                'error'   => app()->environment('local') ? $e->getMessage() : null
+                'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -76,39 +77,39 @@ class CategoryController extends Controller
 
             return response()->json([
                 'success' => true,
-                'status'  => 201,
+                'status' => 201,
                 'message' => 'Category created successfully',
-                'data'    => [
-                    'category' => $category
-                ]
+                'data' => [
+                    'category' => $category,
+                ],
             ], 201);
 
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'status'  => 422,
+                'status' => 422,
                 'message' => 'Validation failed',
-                'errors'  => $e->errors()
+                'errors' => $e->errors(),
             ], 422);
 
         } catch (QueryException $e) {
-            \Log::error('Category store DB error: ' . $e->getMessage());
+            \Log::error('Category store DB error: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Database error occurred',
-                'error'   => app()->environment('local') ? $e->getMessage() : null
+                'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
 
         } catch (\Throwable $e) {
-            \Log::error('Category store failed: ' . $e->getMessage());
+            \Log::error('Category store failed: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Failed to create category',
-                'error'   => app()->environment('local') ? $e->getMessage() : null
+                'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -124,28 +125,28 @@ class CategoryController extends Controller
 
             return response()->json([
                 'success' => true,
-                'status'  => 200,
+                'status' => 200,
                 'message' => 'Category fetched successfully',
-                'data'    => [
-                    'category' => $category
-                ]
+                'data' => [
+                    'category' => $category,
+                ],
             ], 200);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'status'  => 404,
+                'status' => 404,
                 'message' => 'Category not found',
             ], 404);
 
         } catch (\Throwable $e) {
-            \Log::error('Category show failed: ' . $e->getMessage());
+            \Log::error('Category show failed: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Failed to fetch category',
-                'error'   => app()->environment('local') ? $e->getMessage() : null
+                'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -160,8 +161,8 @@ class CategoryController extends Controller
             $category = Category::findOrFail($id);
 
             $data = $request->validate([
-                'name' => 'sometimes|required|string|max:191|unique:categories,name,' . $category->id,
-                'slug' => 'nullable|string|max:191|unique:categories,slug,' . $category->id,
+                'name' => 'sometimes|required|string|max:191|unique:categories,name,'.$category->id,
+                'slug' => 'nullable|string|max:191|unique:categories,slug,'.$category->id,
                 'description' => 'nullable|string',
                 'image' => 'nullable|string',
             ]);
@@ -184,36 +185,36 @@ class CategoryController extends Controller
 
             return response()->json([
                 'success' => true,
-                'status'  => 200,
+                'status' => 200,
                 'message' => 'Category updated successfully',
-                'data'    => [
-                    'category' => $category
-                ]
+                'data' => [
+                    'category' => $category,
+                ],
             ], 200);
 
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'status'  => 422,
+                'status' => 422,
                 'message' => 'Validation failed',
-                'errors'  => $e->errors()
+                'errors' => $e->errors(),
             ], 422);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'status'  => 404,
+                'status' => 404,
                 'message' => 'Category not found',
             ], 404);
 
         } catch (\Throwable $e) {
-            \Log::error('Category update failed: ' . $e->getMessage());
+            \Log::error('Category update failed: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Failed to update category',
-                'error'   => app()->environment('local') ? $e->getMessage() : null
+                'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -236,25 +237,25 @@ class CategoryController extends Controller
 
             return response()->json([
                 'success' => true,
-                'status'  => 200,
-                'message' => 'Category deleted successfully'
+                'status' => 200,
+                'message' => 'Category deleted successfully',
             ], 200);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'status'  => 404,
+                'status' => 404,
                 'message' => 'Category not found',
             ], 404);
 
         } catch (\Throwable $e) {
-            \Log::error('Category delete failed: ' . $e->getMessage());
+            \Log::error('Category delete failed: '.$e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Failed to delete category',
-                'error'   => app()->environment('local') ? $e->getMessage() : null
+                'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
     }
@@ -268,12 +269,14 @@ class CategoryController extends Controller
             $image = substr($base64Image, strpos($base64Image, ',') + 1);
             $type = strtolower($type[1]);
             $image = str_replace(' ', '+', $image);
-            $imageName = uniqid() . '.' . $type;
-            $filePath = $folder . '/' . $imageName;
+            $imageName = uniqid().'.'.$type;
+            $filePath = $folder.'/'.$imageName;
 
             \Storage::disk('public')->put($filePath, base64_decode($image));
+
             return $filePath;
         }
+
         return null;
     }
 }

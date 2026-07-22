@@ -8,9 +8,7 @@ use App\Services\TGC\TGCService;
 
 class UploadCardFileAction
 {
-    public function __construct(private readonly TGCService $service)
-    {
-    }
+    public function __construct(private readonly TGCService $service) {}
 
     public function handle(UploadFileDTO $dto): array
     {

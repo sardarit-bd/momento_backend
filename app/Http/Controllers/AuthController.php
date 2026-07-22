@@ -2,16 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Http\Resources\LoginUserResource;
+use App\Models\User;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Database\QueryException;
-use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\JWTException;
-use App\Models\User;
-use Illuminate\Auth\Events\Login;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class AuthController extends Controller
 {
@@ -20,25 +18,24 @@ class AuthController extends Controller
      */
     public function register(Request $request)
     {
-        
-       $data = $request->validate([
-            'name'     => ['required', 'string', 'max:120'],
-            'email'    => ['required', 'email', 'max:191', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
-            'phone'    => ['nullable', 'string', 'max:20'],
-            'address'  => ['nullable', 'string', 'max:255'],
-            'role'   => ['nullable', 'string|in:Customer,Admin', 'max:255'],
-        ]);
 
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:191', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'role' => ['nullable', 'string|in:Customer,Admin', 'max:255'],
+        ]);
 
         try {
             $user = User::create([
-                'name'           => $data['name'],
-                'email'          => $data['email'],
-                'password'       => Hash::make($data['password']),
-                'role'           => $data['role'] ?? 'Customer',
-                'phone'          => $data['phone'] ?? null,
-                'address'        => $data['address'] ?? null,
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'role' => $data['role'] ?? 'Customer',
+                'phone' => $data['phone'] ?? null,
+                'address' => $data['address'] ?? null,
                 'remember_token' => \Str::random(10),
             ]);
 
@@ -46,40 +43,41 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => true,
-                'status'  => 201,
+                'status' => 201,
                 'message' => 'User registered successfully',
-                'data'    => [
+                'data' => [
                     'token' => $token,
-                    'user'  =>$user,
+                    'user' => $user,
                 ],
             ], 201);
 
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'status'  => 422,
+                'status' => 422,
                 'message' => 'Validation failed',
-                'errors'  => $e->errors(),
+                'errors' => $e->errors(),
             ], 200);
         } catch (QueryException $e) {
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Database error',
-                'error'   => app()->environment('local') ? $e->getMessage() : null,
+                'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         } catch (JWTException $e) {
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Token creation failed',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         } catch (\Throwable $e) {
-            \Log::error('Register failed: ' . $e->getMessage());
+            \Log::error('Register failed: '.$e->getMessage());
+
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Unexpected server error',
             ], 500);
         }
@@ -92,14 +90,14 @@ class AuthController extends Controller
     {
         try {
             $credentials = $request->validate([
-                'email'    => ['required', 'email'],
+                'email' => ['required', 'email'],
                 'password' => ['required', 'string'],
             ]);
 
-            if (!$token = auth('api')->attempt($credentials)) {
+            if (! $token = auth('api')->attempt($credentials)) {
                 return response()->json([
                     'success' => false,
-                    'status'  => 401,
+                    'status' => 401,
                     'message' => 'Invalid credentials',
                 ], 401);
             }
@@ -108,19 +106,20 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => true,
-                'status'  => 200,
+                'status' => 200,
                 'message' => 'Login successful',
-                'data'    => [
+                'data' => [
                     'token' => $token,
-                    'user'  => $user,
+                    'user' => $user,
                 ],
             ], 200);
 
         } catch (\Throwable $e) {
-            \Log::error('Login failed: ' . $e->getMessage());
+            \Log::error('Login failed: '.$e->getMessage());
+
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Something went wrong during login',
             ], 500);
         }
@@ -134,32 +133,33 @@ class AuthController extends Controller
         try {
             $user = JWTAuth::parseToken()->authenticate();
 
-            if (!$user) {
+            if (! $user) {
                 return response()->json([
                     'success' => false,
-                    'status'  => 404,
+                    'status' => 404,
                     'message' => 'User not found',
                 ], 404);
             }
 
             return response()->json([
                 'success' => true,
-                'status'  => 200,
+                'status' => 200,
                 'message' => 'User fetched successfully',
-                'data'    => $user,
+                'data' => $user,
             ], 200);
 
         } catch (JWTException $e) {
             return response()->json([
                 'success' => false,
-                'status'  => 401,
+                'status' => 401,
                 'message' => 'Unauthorized or token expired',
             ], 401);
         } catch (\Throwable $e) {
-            \Log::error('ME failed: ' . $e->getMessage());
+            \Log::error('ME failed: '.$e->getMessage());
+
             return response()->json([
                 'success' => false,
-                'status'  => 500,
+                'status' => 500,
                 'message' => 'Server error',
             ], 500);
         }
@@ -172,9 +172,9 @@ class AuthController extends Controller
     {
         return response()->json([
             'success' => true,
-            'status'  => 200,
+            'status' => 200,
             'message' => 'Token refreshed',
-            'data'    => [
+            'data' => [
                 'token' => auth('api')->refresh(),
             ],
         ], 200);
@@ -189,9 +189,9 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'status'  => 200,
+            'status' => 200,
             'message' => 'Logged out successfully',
-            'data'    => null,
+            'data' => null,
         ], 200);
     }
 }

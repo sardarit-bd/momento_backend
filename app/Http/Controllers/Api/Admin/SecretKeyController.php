@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\SecretKey;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class SecretKeyController extends Controller
 {
@@ -15,7 +15,7 @@ class SecretKeyController extends Controller
             ->get();
 
         return response()->json([
-            'data' => $secrets
+            'data' => $secrets,
         ]);
     }
 
@@ -23,13 +23,13 @@ class SecretKeyController extends Controller
     {
         return response()->json([
             'data' => [
-                'id'                      => $secret->id,
-                'stripe_publishable_key'  => $secret->stripe_publishable_key,
-                'stripe_secret_key'      => $secret->stripe_secret_key,
-                'stripe_webhook_key'      => $secret->stripe_webhook_key,
-                'is_active'               => $secret->is_active,
-                'updated_at'              => $secret->updated_at,
-            ]
+                'id' => $secret->id,
+                'stripe_publishable_key' => $secret->stripe_publishable_key,
+                'stripe_secret_key' => $secret->stripe_secret_key,
+                'stripe_webhook_key' => $secret->stripe_webhook_key,
+                'is_active' => $secret->is_active,
+                'updated_at' => $secret->updated_at,
+            ],
         ]);
     }
 
@@ -53,8 +53,8 @@ class SecretKeyController extends Controller
     {
         $validated = $request->validate([
             'stripe_publishable_key' => 'required|string',
-            'stripe_secret_key'      => 'required|string',
-            'stripe_webhook_key'     => 'required|string',
+            'stripe_secret_key' => 'required|string',
+            'stripe_webhook_key' => 'required|string',
         ]);
 
         $secret = SecretKey::updateOrCreate(
@@ -64,24 +64,24 @@ class SecretKeyController extends Controller
 
         return response()->json([
             'message' => 'Stripe keys saved successfully',
-            'data'    => $secret->only(['id', 'stripe_publishable_key', 'stripe_secret_key', 'stripe_webhook_key', 'is_active'])
+            'data' => $secret->only(['id', 'stripe_publishable_key', 'stripe_secret_key', 'stripe_webhook_key', 'is_active']),
         ], 200);
     }
 
     public function update(Request $request, SecretKey $secret): JsonResponse
     {
         $validated = $request->validate([
-            'stripe_publishable_key' => 'sometimes|string|unique:secret_keys,stripe_publishable_key,' . $secret->id,
-            'stripe_secret_key'     => 'sometimes|string|unique:secret_keys,stripe_secret_key,' . $secret->id,
-            'stripe_webhook_key'     => 'sometimes|string|unique:secret_keys,stripe_webhook_key,' . $secret->id,
-            'is_active'              => 'sometimes|boolean',
+            'stripe_publishable_key' => 'sometimes|string|unique:secret_keys,stripe_publishable_key,'.$secret->id,
+            'stripe_secret_key' => 'sometimes|string|unique:secret_keys,stripe_secret_key,'.$secret->id,
+            'stripe_webhook_key' => 'sometimes|string|unique:secret_keys,stripe_webhook_key,'.$secret->id,
+            'is_active' => 'sometimes|boolean',
         ]);
 
         $secret->update($validated);
 
         return response()->json([
             'message' => 'Stripe keys updated successfully',
-            'data'    => $secret->only(['id', 'stripe_publishable_key', 'stripe_secret_key', 'stripe_webhook_key', 'is_active'])
+            'data' => $secret->only(['id', 'stripe_publishable_key', 'stripe_secret_key', 'stripe_webhook_key', 'is_active']),
         ]);
     }
 
@@ -103,16 +103,16 @@ class SecretKeyController extends Controller
     {
         $secret = SecretKey::where('is_active', true)->first();
 
-        if (!$secret) {
+        if (! $secret) {
             return response()->json(['error' => 'No active Stripe keys found'], 404);
         }
 
         return response()->json([
             'data' => [
                 'stripe_publishable_key' => $secret->stripe_publishable_key,
-                'stripe_secret_key'     => $secret->stripe_secret_key,
-                'stripe_webhook_key'     => $secret->stripe_webhook_key,
-            ]
+                'stripe_secret_key' => $secret->stripe_secret_key,
+                'stripe_webhook_key' => $secret->stripe_webhook_key,
+            ],
         ]);
     }
 }

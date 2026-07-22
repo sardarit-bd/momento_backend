@@ -11,14 +11,16 @@ class SubscriberController extends Controller
     public function index()
     {
         $users = User::select('id', 'name', 'email', 'role', 'phone', 'address', 'avatar', 'created_at')
-        ->get()
-        ->map(function ($item) {
-            $item->type = strtolower($item->role);
-            return $item;
-        });
+            ->get()
+            ->map(function ($item) {
+                $item->type = strtolower($item->role);
+
+                return $item;
+            });
 
         $subscribers = Subscriber::all()->map(function ($item) {
             $item->type = 'Subscriber';
+
             return $item;
         });
 
@@ -26,13 +28,14 @@ class SubscriberController extends Controller
 
         return response()->json([
             'success' => true,
-            'status'  => 200,
+            'status' => 200,
             'message' => 'Users and Subscribers fetched successfully',
-            'data'    => $all,
+            'data' => $all,
         ]);
     }
 
-    public function store(Request $request){
+    public function store(Request $request)
+    {
         $request->validate([
             'email' => 'required|email|unique:subscribers,email',
         ]);
@@ -43,9 +46,9 @@ class SubscriberController extends Controller
 
         return response()->json([
             'success' => true,
-            'status'  => 201,
+            'status' => 201,
             'message' => 'Subscribed successfully',
-            'data'    => ['subscriber' => $subscriber],
+            'data' => ['subscriber' => $subscriber],
         ]);
     }
 }

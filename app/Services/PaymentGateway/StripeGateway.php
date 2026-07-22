@@ -2,13 +2,13 @@
 
 namespace App\Services\PaymentGateway;
 
-use Stripe\Webhook;
-use App\Models\Order;
-use Stripe\StripeClient;
+use App\Interface\PaymentGateway\PaymentGatewayInterface;
 use App\Mail\AbandonedCartRecovery;
+use App\Models\Order;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use App\Interface\PaymentGateway\PaymentGatewayInterface;
+use Stripe\StripeClient;
+use Stripe\Webhook;
 
 class StripeGateway implements PaymentGatewayInterface
 {
@@ -21,7 +21,6 @@ class StripeGateway implements PaymentGatewayInterface
 
     /**
      * This method creates a Stripe checkout session
-     * @param array $data
      */
     public function createCheckout(array $data)
     {
@@ -30,11 +29,11 @@ class StripeGateway implements PaymentGatewayInterface
         foreach ($data['items'] as $item) {
             $lineItems[] = [
                 'price_data' => [
-                    'currency'    => $data['currency'] ?? 'usd',
+                    'currency' => $data['currency'] ?? 'usd',
                     'unit_amount' => intval($item['price']),
-                    'product_data' => ['name' => $item['name']]
+                    'product_data' => ['name' => $item['name']],
                 ],
-                'quantity' => intval($item['qty'])
+                'quantity' => intval($item['qty']),
             ];
         }
 
@@ -43,7 +42,7 @@ class StripeGateway implements PaymentGatewayInterface
             'mode' => 'payment',
             'line_items' => $lineItems,
             'success_url' => $data['success_url'],
-            'cancel_url'  => $data['cancel_url'],
+            'cancel_url' => $data['cancel_url'],
             'metadata' => [
                 'order_id' => $data['metadata']['order_id'],
                 'first_name' => $data['metadata']['first_name'] ?? '',
@@ -84,7 +83,7 @@ class StripeGateway implements PaymentGatewayInterface
                     $orderId = $session->metadata->order_id ?? null;
                     $order = Order::with('orderHasPaids')->find($orderId);
 
-                    if ($order && !$order->is_paid) {
+                    if ($order && ! $order->is_paid) {
                         // Update existing pending payment record
                         $payment = $order->orderHasPaids()
                             ->where('method', 'stripe')
@@ -94,16 +93,16 @@ class StripeGateway implements PaymentGatewayInterface
 
                         if ($payment) {
                             $payment->update([
-                                'status'         => 'completed',
+                                'status' => 'completed',
                                 'transaction_id' => $session->payment_intent ?? $session->id,
-                                'notes'          => 'Payment completed successfully via Stripe.',
+                                'notes' => 'Payment completed successfully via Stripe.',
                             ]);
                         }
 
                         // Update order
                         $order->update([
                             'is_paid' => true,
-                            'status'  => 'completed',
+                            'status' => 'completed',
                         ]);
                     }
                 }
@@ -135,11 +134,11 @@ class StripeGateway implements PaymentGatewayInterface
                         }
 
                         $payment->update([
-                            'status'         => 'failed',
+                            'status' => 'failed',
                             'transaction_id' => $session->id,
-                            'notes'          => $notes,
+                            'notes' => $notes,
                         ]);
-                        
+
                         if ($sendRecoveryEmail && $recoveryUrl) {
                             Mail::to($order->email)->queue(
                                 new AbandonedCartRecovery($order, $recoveryUrl)
@@ -154,14 +153,14 @@ class StripeGateway implements PaymentGatewayInterface
         } catch (\Stripe\Exception\SignatureVerificationException $e) {
             return response('Invalid signature', 400);
         } catch (\Exception $e) {
-            Log::error('Stripe webhook error: ' . $e->getMessage());
+            Log::error('Stripe webhook error: '.$e->getMessage());
+
             return response('Webhook error', 500);
         }
     }
 
     /**
      * Helper to build the JSON the frontend expects.
-     * @param Order $order
      */
     public function buildOrderResponse(Order $order)
     {
@@ -170,33 +169,33 @@ class StripeGateway implements PaymentGatewayInterface
         foreach ($order->orderItems as $item) {
             $imagePath = $item->product->image ?? null;
 
-            if (!$imagePath) {
-                continue; 
+            if (! $imagePath) {
+                continue;
             }
 
             $fullPath = public_path($imagePath);
 
-            if (!file_exists($fullPath)) {
-                $fullPath = storage_path('app/public/' . ltrim($imagePath, '/'));
+            if (! file_exists($fullPath)) {
+                $fullPath = storage_path('app/public/'.ltrim($imagePath, '/'));
             }
 
             if (file_exists($fullPath)) {
                 $mime = mime_content_type($fullPath) ?: 'image/png';
-                $b64  = base64_encode(file_get_contents($fullPath));
+                $b64 = base64_encode(file_get_contents($fullPath));
                 $images[] = "data:{$mime};base64,{$b64}";
             }
         }
 
         return [
             'AllProductImage' => $images,
-            'City'            => $order->city ?? '',
-            'address'         => $order->address,
-            'email'           => $order->email,
-            'name'            => $order->name,
-            'payment_method'  => 'stripe',
-            'phone'           => $order->phone,
+            'City' => $order->city ?? '',
+            'address' => $order->address,
+            'email' => $order->email,
+            'name' => $order->name,
+            'payment_method' => 'stripe',
+            'phone' => $order->phone,
             'roundTotolPrice' => $order->total,
-            'zipcode'         => $order->zipcode ?? '',
+            'zipcode' => $order->zipcode ?? '',
         ];
     }
 }

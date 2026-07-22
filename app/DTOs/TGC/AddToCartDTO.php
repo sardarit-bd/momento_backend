@@ -16,7 +16,7 @@ readonly class AddToCartDTO
             throw new InvalidArgumentException('cart_id, sku_id and quantity are required');
         }
     }
-    
+
     public static function fromRequest(Request $request, string $cartId): self
     {
         return new self(

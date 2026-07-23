@@ -19,7 +19,7 @@ class OrderReceivedMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Order Received - '.config('app.name'),
+            subject: 'Order Received',
         );
     }
 

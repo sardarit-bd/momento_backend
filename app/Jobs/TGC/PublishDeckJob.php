@@ -41,6 +41,52 @@ class PublishDeckJob implements ShouldQueue
         private readonly int $orderId,
     ) {}
 
+    private function buildCardsBySlot($allCards): array
+    {
+        $deckCards = $allCards->where('card_type', 'deck');
+        $byRank = $deckCards->whereNotIn('rank', [null, ''])->keyBy(fn ($c) => strtolower($c->rank));
+        $jokers = $deckCards->filter(fn ($c) => strtolower((string) $c->rank) === 'joker')->values();
+
+        $suitFaceMap = [
+            'king'  => ['Clubs_Face_King', 'Diamonds_Face_King', 'Hearts_Face_King', 'Spades_Face_King'],
+            'queen' => ['Clubs_Face_Queen', 'Diamonds_Face_Queen', 'Hearts_Face_Queen', 'Spades_Face_Queen'],
+            'jack'  => ['Clubs_Face_Jack', 'Diamonds_Face_Jack', 'Hearts_Face_Jack', 'Spades_Face_Jack'],
+            'ace'   => ['Clubs_Ace', 'Diamonds_Ace', 'Hearts_Ace', 'Spades_Ace'],
+        ];
+
+        $recognizedRanks = ['king', 'queen', 'jack', 'ace', 'joker'];
+        foreach ($allCards->where('card_type', 'deck') as $card) {
+            $rank = strtolower((string) $card->rank);
+            if ($rank !== '' && ! in_array($rank, $recognizedRanks, true) && ! empty($card->image_blob)) {
+                Log::warning('PublishDeckJob: customized deck card has an unrecognised rank and will be silently defaulted', [
+                    'order_id' => $this->orderId,
+                    'order_item_card_id' => $card->id,
+                    'slot_name' => $card->slot_name,
+                    'rank' => $card->rank,
+                ]);
+            }
+        }
+
+        // ── This was the missing block — builds the actual face-card mapping ──
+        $result = [];
+        foreach ($suitFaceMap as $rank => $slots) {
+            if ($card = $byRank->get($rank)) {
+                foreach ($slots as $slot) {
+                    $result[$slot] = $card;
+                }
+            }
+        }
+
+        if ($jokers->count() > 0) {
+            $result['Joker_1'] = $jokers->get(0);
+            if ($jokers->count() > 1) {
+                $result['Joker_2'] = $jokers->get(1);
+            }
+        }
+
+        return $result;
+    }
+
     public function handle(TGCService $tgc): void
     {
         // Idempotency: use lock to prevent race conditions between concurrent jobs
@@ -247,9 +293,7 @@ class PublishDeckJob implements ShouldQueue
                 $this->setStatus($jobId, 'running', 'Preparing cards...');
 
                 // Build a lookup: slot_name => OrderItemCard (deck cards only)
-                $cardsBySlot = $allCards
-                    ->where('card_type', 'deck')
-                    ->keyBy('slot_name');
+                $cardsBySlot = $this->buildCardsBySlot($allCards);
 
                 $deckOrder = [
                     'Clubs_Ace',         'Clubs_Number_2',    'Clubs_Number_3',    'Clubs_Number_4',

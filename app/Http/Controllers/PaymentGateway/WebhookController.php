@@ -142,21 +142,17 @@ class WebhookController extends Controller
             if ($order->is_customized) {
                 $order->loadMissing('orderItems.product');
 
-                // A genuine deck product is detected by product type first.
-                // Only fall back to customization_mode when the product type is
-                // unknown. A photo portrait item's mode auto-resolves to 'deck'
-                // (its cards carry ranks), so it must NOT be counted as a deck
-                // — otherwise an extra deck order would be published.
                 $hasDeck = $order->orderItems->contains(function ($i) {
-                    $type = strtolower((string) optional($i->product)->type);
-                    if ($type !== '' && ! in_array($type, ['deck', 'deck-card', 'poker-deck'])) {
+                    if ($i->customization_mode === 'photo') {
                         return false;
                     }
+                    if ($i->customization_mode === 'deck') {
+                        return true;
+                    }
 
-                    return $type !== 'photo'
-                        && $i->customization_mode !== 'photo'
-                        && (in_array($type, ['deck', 'deck-card', 'poker-deck'])
-                            || $i->customization_mode === 'deck');
+                    $type = strtolower((string) optional($i->product)->type);
+
+                    return in_array($type, ['deck', 'deck-card', 'poker-deck', 'customizable'], true);
                 });
 
                 $hasTrading = $order->orderItems->contains(function ($i) {

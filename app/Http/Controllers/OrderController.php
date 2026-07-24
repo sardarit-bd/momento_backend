@@ -576,21 +576,36 @@ class OrderController extends Controller
 
     public function destroy() {}
 
-    // My Orders here
-    // My Orders here
-    // My Orders here
-
     public function myorders(Request $request, $id)
     {
+        $user = User::find($id);
+
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'status' => 404,
+                'message' => 'User not found',
+            ], 404);
+        }
+
         $orders = Order::with(['orderItems.product', 'user:id,name,email'])
             ->where('user_id', $id)
             ->latest('id')
             ->paginate(10);
 
         return response()->json([
-            'message' => 'Order fetched successfully',
-            'data' => $orders,
+            'success' => true,
+            'status' => 200,
+            'message' => $orders->total() === 0 ? 'No orders found' : 'Order fetched successfully',
+            'data' => [
+                'orders' => $orders->items(),
+                'pagination' => [
+                    'current_page' => $orders->currentPage(),
+                    'last_page' => $orders->lastPage(),
+                    'per_page' => $orders->perPage(),
+                    'total' => $orders->total(),
+                ],
+            ],
         ]);
-
     }
 }

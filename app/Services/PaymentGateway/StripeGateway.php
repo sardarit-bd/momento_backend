@@ -37,6 +37,7 @@ class StripeGateway implements PaymentGatewayInterface
             ];
         }
 
+
         $session = $this->stripe->checkout->sessions->create([
             'payment_method_types' => ['card'],
             'mode' => 'payment',
@@ -56,6 +57,7 @@ class StripeGateway implements PaymentGatewayInterface
             'after_expiration' => $data['after_expiration'] ?? [
                 'recovery' => ['enabled' => true],
             ],
+            'allow_promotion_codes' => true,
         ]);
 
         return $session;

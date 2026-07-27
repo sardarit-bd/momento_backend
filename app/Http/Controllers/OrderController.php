@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Services\CartPriceResolver;
 use App\Services\PaymentGateway\PaymentGatewayFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -506,6 +507,8 @@ class OrderController extends Controller
     // retry payment for pending orders
     public function retryPayment(Order $order)
     {
+        $order->loadMissing('orderItems.product');
+
         if ($order->status !== 'pending') {
             return response()->json(['error' => 'Order is not pending'], 403);
         }
@@ -536,16 +539,51 @@ class OrderController extends Controller
         ]);
 
         $gateway = PaymentGatewayFactory::make('stripe');
-        $stripeItems = $order->orderItems->map(function ($item) {
-            $product = $item->product;
-            $sellingPrice = $product->offer_price > 0 ? $product->offer_price : $product->price;
 
+        // Build pricing items from original order items using CartPriceResolver
+        $resolver = app(CartPriceResolver::class);
+        $pricingItems = $order->orderItems->map(function ($item) {
             return [
-                'name' => $product->name,
+                'product_id' => $item->product_id,
                 'qty' => $item->quantity,
-                'price' => round($sellingPrice * 100),
+                'package_slug' => null,
+                'has_joker' => (bool) $item->has_joker,
             ];
         })->toArray();
+
+        $pricedCart = $resolver->priceCart($pricingItems);
+
+        $stripeItems = [];
+        foreach ($pricedCart['lines'] as $line) {
+            $orderItem = $order->orderItems->first(function ($item) use ($line) {
+                return $item->product_id === $line['product_id'];
+            });
+            $productName = $orderItem?->product?->name ?? 'Item';
+
+            $stripeItems[] = [
+                'name' => $productName,
+                'qty' => $line['qty'],
+                'price' => round($line['base_unit_price'] * 100),
+            ];
+
+            if ($line['has_joker'] && $line['joker_addon'] > 0) {
+                $stripeItems[] = [
+                    'name' => 'Joker Add-on',
+                    'qty' => $line['qty'],
+                    'price' => round($line['joker_addon'] * 100),
+                ];
+            }
+        }
+
+        // Add tax line
+        $taxCents = (int) round($pricedCart['tax'] * 100);
+        if ($taxCents > 0) {
+            $stripeItems[] = [
+                'name' => 'Tax',
+                'qty' => 1,
+                'price' => $taxCents,
+            ];
+        }
 
         $session = $gateway->createCheckout([
             'items' => $stripeItems,
@@ -553,6 +591,7 @@ class OrderController extends Controller
             'success_url' => env('APP_URL').'/payment/success',
             'cancel_url' => env('APP_URL').'/payment/cancel',
             'currency' => 'usd',
+            'customer_email' => $user->email,
             'metadata' => ['order_id' => $order->id],
             'expires_at' => now()->addHour(1)->timestamp,
             'after_expiration' => ['recovery' => ['enabled' => true]],

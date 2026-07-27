@@ -2,6 +2,7 @@
 
 namespace App\Services\PaymentGateway;
 
+use App\Events\OrderPlaced;
 use App\Models\Product;
 use App\Models\ShippingInformation;
 use App\Services\CartPriceResolver;
@@ -387,6 +388,7 @@ class StripeGatewayService
                 'cancel_url' => rtrim(config('app.frontend_url'), '/').'/payment/cancel?session_id={CHECKOUT_SESSION_ID}',
 
                 'currency' => 'usd',
+                'customer_email' => $user?->email,
                 'metadata' => [
                     'order_id' => $order->id,
                     'first_name' => $request->first_name,
@@ -505,6 +507,8 @@ class StripeGatewayService
             ]);
 
             DB::commit();
+
+            event(new OrderPlaced($order));
 
             return response()->json([
                 'success' => true,

@@ -13,9 +13,4 @@ class CashOnDeliveryGateway implements PaymentGatewayInterface
             'id' => null,
         ];
     }
-
-    public function handleWebhook(string $payload, ?string $sigHeader = null)
-    {
-        return response('COD does not use webhook', 200);
-    }
 }

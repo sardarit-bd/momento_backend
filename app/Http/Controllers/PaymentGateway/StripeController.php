@@ -45,10 +45,14 @@ class StripeController extends Controller
 
                 if ($payment) {
                     $payment->update([
-                        'status' => 'pending',
+                        'status' => 'failed',
                         'notes' => 'Payment canceled by user during Stripe checkout.',
                     ]);
                 }
+
+                $order->update([
+                    'status' => 'canceled',
+                ]);
             }
         }
 

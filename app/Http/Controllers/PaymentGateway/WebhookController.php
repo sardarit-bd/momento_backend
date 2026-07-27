@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\PaymentGateway;
 
+use App\Events\OrderPlaced;
 use App\Http\Controllers\Controller;
 use App\Jobs\TGC\PublishDeckJob;
 use App\Models\Order;
@@ -37,6 +38,9 @@ class WebhookController extends Controller
 
                 case 'checkout.session.expired':
                     return $this->handleCheckoutExpired($event->data->object);
+
+                case 'checkout.session.payment_failed':
+                    return $this->handleCheckoutPaymentFailed($event->data->object);
 
                 default:
                     return response()->json(['received' => true]);
@@ -78,9 +82,9 @@ class WebhookController extends Controller
         DB::beginTransaction();
 
         try {
-            // Idempotency: skip if this stripe session was already processed
-            if ($order->stripe_session_id === $session->id) {
-                Log::info('Stripe webhook skipped: order already has this session_id', [
+            // Idempotency: skip if payment was already fulfilled
+            if ($order->is_paid) {
+                Log::info('Stripe webhook skipped: order already paid', [
                     'order_id' => $order->id,
                     'session_id' => $session->id,
                 ]);
@@ -138,6 +142,8 @@ class WebhookController extends Controller
             );
 
             DB::commit();
+
+            event(new OrderPlaced($order));
 
             if ($order->is_customized) {
                 $order->loadMissing('orderItems.product');
@@ -259,6 +265,61 @@ class WebhookController extends Controller
             DB::rollBack();
 
             Log::error('Failed to process expired session', [
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json(['received' => true]);
+    }
+
+    protected function handleCheckoutPaymentFailed($session)
+    {
+        $orderId = $session->metadata->order_id ?? null;
+
+        if (! $orderId) {
+            return response()->json(['received' => true]);
+        }
+
+        $order = Order::find($orderId);
+
+        if (! $order) {
+            return response()->json(['received' => true]);
+        }
+
+        // Don't touch already paid orders
+        if ($order->is_paid) {
+            return response()->json(['received' => true]);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $payment = $order->orderHasPaids()
+                ->where('method', 'stripe')
+                ->where('status', 'pending')
+                ->latest()
+                ->first();
+
+            if ($payment) {
+                $payment->update([
+                    'status' => 'failed',
+                    'transaction_id' => $session->payment_intent ?? $session->id,
+                    'notes' => 'Payment failed via Stripe checkout.',
+                ]);
+            }
+
+            $order->update([
+                'is_paid' => false,
+                'status' => 'pending',
+            ]);
+
+            DB::commit();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error('Failed to process payment_failed session', [
                 'order_id' => $orderId,
                 'error' => $e->getMessage(),
             ]);

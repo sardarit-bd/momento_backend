@@ -3,12 +3,8 @@
 namespace App\Services\PaymentGateway;
 
 use App\Interface\PaymentGateway\PaymentGatewayInterface;
-use App\Mail\AbandonedCartRecovery;
 use App\Models\Order;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Stripe\StripeClient;
-use Stripe\Webhook;
 
 class StripeGateway implements PaymentGatewayInterface
 {
@@ -38,7 +34,7 @@ class StripeGateway implements PaymentGatewayInterface
         }
 
 
-        $session = $this->stripe->checkout->sessions->create([
+        $sessionConfig = [
             'payment_method_types' => ['card'],
             'mode' => 'payment',
             'line_items' => $lineItems,
@@ -58,110 +54,21 @@ class StripeGateway implements PaymentGatewayInterface
                 'recovery' => ['enabled' => true],
             ],
             'allow_promotion_codes' => true,
-        ]);
+        ];
+
+        if (! empty($data['customer_email'])) {
+            $customer = $this->stripe->customers->create([
+                'email' => $data['customer_email'],
+            ]);
+            $sessionConfig['customer'] = $customer->id;
+        }
+
+        $session = $this->stripe->checkout->sessions->create($sessionConfig);
 
         return $session;
     }
 
-    /**
-     * This method handle webhook payload from Stripe.
-     */
-    public function handleWebhook(string $payload, ?string $sigHeader = null)
-    {
-        $webhookSecret = config('services.stripe.webhook_secret');
-
-        try {
-            $event = $webhookSecret && $sigHeader
-                ? Webhook::constructEvent($payload, $sigHeader, $webhookSecret)
-                : json_decode($payload);
-
-            $eventType = $event->type;
-
-            // Successful payment
-            if ($eventType === 'checkout.session.completed') {
-                $session = $event->data->object;
-
-                if ($session->payment_status === 'paid') {
-                    $orderId = $session->metadata->order_id ?? null;
-                    $order = Order::with('orderHasPaids')->find($orderId);
-
-                    if ($order && ! $order->is_paid) {
-                        // Update existing pending payment record
-                        $payment = $order->orderHasPaids()
-                            ->where('method', 'stripe')
-                            ->where('status', 'pending')
-                            ->latest()
-                            ->first();
-
-                        if ($payment) {
-                            $payment->update([
-                                'status' => 'completed',
-                                'transaction_id' => $session->payment_intent ?? $session->id,
-                                'notes' => 'Payment completed successfully via Stripe.',
-                            ]);
-                        }
-
-                        // Update order
-                        $order->update([
-                            'is_paid' => true,
-                            'status' => 'completed',
-                        ]);
-                    }
-                }
-            }
-
-            // Session expired (abandoned or canceled)
-            if ($eventType === 'checkout.session.expired') {
-                $session = $event->data->object;
-                $orderId = $session->metadata->order_id ?? null;
-                $order = Order::find($orderId);
-
-                if ($order) {
-                    $payment = $order->orderHasPaids()
-                        ->where('method', 'stripe')
-                        ->where('status', 'pending')
-                        ->latest()
-                        ->first();
-
-                    if ($payment) {
-                        $notes = 'Checkout session expired.';
-                        $sendRecoveryEmail = false;
-                        $recoveryUrl = $session->after_expiration->recovery->url ?? null;
-
-                        if ($recoveryUrl) {
-                            $notes .= ' User abandoned cart — recovery link generated.';
-                            $sendRecoveryEmail = true;
-                        } else {
-                            $notes .= ' User likely canceled immediately.';
-                        }
-
-                        $payment->update([
-                            'status' => 'failed',
-                            'transaction_id' => $session->id,
-                            'notes' => $notes,
-                        ]);
-
-                        if ($sendRecoveryEmail && $recoveryUrl) {
-                            Mail::to($order->email)->queue(
-                                new AbandonedCartRecovery($order, $recoveryUrl)
-                            );
-                        }
-                    }
-                }
-            }
-
-            return response('Webhook handled', 200);
-
-        } catch (\Stripe\Exception\SignatureVerificationException $e) {
-            return response('Invalid signature', 400);
-        } catch (\Exception $e) {
-            Log::error('Stripe webhook error: '.$e->getMessage());
-
-            return response('Webhook error', 500);
-        }
-    }
-
-    /**
+/**
      * Helper to build the JSON the frontend expects.
      */
     public function buildOrderResponse(Order $order)

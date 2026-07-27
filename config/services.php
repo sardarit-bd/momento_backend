@@ -38,7 +38,7 @@ return [
     'stripe' => [
         'key' => env('STRIPE_KEY'),
         'secret' => env('STRIPE_SECRET'),
-        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'webhook_signing_secret' => env('STRIPE_WEBHOOK_SECRET'),
     ],
 
     'tgc' => [

@@ -48,10 +48,10 @@ class PublishDeckJob implements ShouldQueue
         $jokers = $deckCards->filter(fn ($c) => strtolower((string) $c->rank) === 'joker')->values();
 
         $suitFaceMap = [
-            'king'  => ['Clubs_Face_King', 'Diamonds_Face_King', 'Hearts_Face_King', 'Spades_Face_King'],
+            'king' => ['Clubs_Face_King', 'Diamonds_Face_King', 'Hearts_Face_King', 'Spades_Face_King'],
             'queen' => ['Clubs_Face_Queen', 'Diamonds_Face_Queen', 'Hearts_Face_Queen', 'Spades_Face_Queen'],
-            'jack'  => ['Clubs_Face_Jack', 'Diamonds_Face_Jack', 'Hearts_Face_Jack', 'Spades_Face_Jack'],
-            'ace'   => ['Clubs_Ace', 'Diamonds_Ace', 'Hearts_Ace', 'Spades_Ace'],
+            'jack' => ['Clubs_Face_Jack', 'Diamonds_Face_Jack', 'Hearts_Face_Jack', 'Spades_Face_Jack'],
+            'ace' => ['Clubs_Ace', 'Diamonds_Ace', 'Hearts_Ace', 'Spades_Ace'],
         ];
 
         $recognizedRanks = ['king', 'queen', 'jack', 'ace', 'joker'];

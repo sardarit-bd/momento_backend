@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\TGC\PublishDeckJob;
 use App\Models\Order;
 use App\Models\ShippingInformation;
+use App\Services\PaymentGateway\StripeConfigService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -17,7 +18,7 @@ class WebhookController extends Controller
     {
         $payload = $request->getContent();
         $signature = $request->header('Stripe-Signature');
-        $webhookSecret = config('services.stripe.webhook_secret');
+        $webhookSecret = StripeConfigService::getWebhookSigningSecret();
 
         if (! $webhookSecret) {
             Log::error('Stripe webhook secret not configured');

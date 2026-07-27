@@ -12,7 +12,7 @@ class StripeGateway implements PaymentGatewayInterface
 
     public function __construct()
     {
-        $this->stripe = new StripeClient(config('services.stripe.secret'));
+        $this->stripe = new StripeClient(StripeConfigService::getSecretKey());
     }
 
     /**
@@ -32,7 +32,6 @@ class StripeGateway implements PaymentGatewayInterface
                 'quantity' => intval($item['qty']),
             ];
         }
-
 
         $sessionConfig = [
             'payment_method_types' => ['card'],
@@ -68,7 +67,7 @@ class StripeGateway implements PaymentGatewayInterface
         return $session;
     }
 
-/**
+    /**
      * Helper to build the JSON the frontend expects.
      */
     public function buildOrderResponse(Order $order)

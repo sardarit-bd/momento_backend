@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\AdminOrderPaymentController;
 use App\Http\Controllers\Api\Admin\SecretKeyController;
+use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\CartPricingController;
 use App\Http\Controllers\Api\TradingCardPackageController;
 use App\Http\Controllers\AuthController;
@@ -27,15 +28,20 @@ Route::post('forgotpass', [OtpController::class, 'otpSender']);
 Route::post('verify', [OtpController::class, 'verifyOtp']);
 Route::post('resetpass', [OtpController::class, 'resetPassword']);
 
-// Profile
-Route::get('profile/{id}', [ProfileController::class, 'profile']);
-Route::put('profile/{id}', [ProfileController::class, 'update']);
-
 // Protected routes
-Route::middleware('auth:api')->group(function () {
+Route::middleware(['auth:api', 'token.revoked'])->group(function () {
     Route::get('auth/me', [AuthController::class, 'me']);
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::post('auth/refresh', [AuthController::class, 'refresh']);
+
+    // Profile — moved inside the authenticated group. These were previously
+    // registered as fully public routes (no auth:api at all), meaning anyone
+    // who knew/guessed a user ID could view or edit that user's profile
+    // without logging in. This also explains why "Profile" kept working
+    // client-side even after a token was revoked via role change — the
+    // endpoint never checked the token in the first place.
+    Route::get('profile/{id}', [ProfileController::class, 'profile']);
+    Route::put('profile/{id}', [ProfileController::class, 'update']);
 
     // ======================================================================
     // ============================Admin can handle==========================
@@ -77,6 +83,10 @@ Route::middleware('auth:api')->group(function () {
 
         Route::post('/secrets/{secret}/restore', [SecretKeyController::class, 'restore'])
             ->name('secrets.restore');
+
+        // User Role Management
+        Route::get('users', [UserController::class, 'index']);
+        Route::put('users/{user}/role', [UserController::class, 'updateRole']);
 
     });
 

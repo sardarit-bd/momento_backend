@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'auth' => App\Http\Middleware\Authenticate::class,
             'roles' => App\Http\Middleware\RoleCheck::class,
+            'token.revoked' => \App\Http\Middleware\EnsureTokenNotRevoked::class,
         ]);
 
         $middleware->validateCsrfTokens(except: [

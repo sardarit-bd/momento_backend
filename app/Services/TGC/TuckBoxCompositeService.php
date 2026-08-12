@@ -123,8 +123,7 @@ class TuckBoxCompositeService
             $scaledH = (int) ($slotH * $slot['scale']);
             $scaledX = (int) ($cx - $scaledW / 2);
 
-            // ✅ If slot has feet_y, pin feet to that canvas pixel directly
-            // Otherwise fall back to original cy formula
+
             if (isset($slot['feet_y'])) {
                 $feetY = (int) ($H * $slot['feet_y'] / 100);
                 $scaledY = $feetY - $scaledH;

@@ -12,7 +12,7 @@ class CartPriceResolver
 {
     const TAX_RATE = 0.08;
 
-    const JOKER_ADDON_PRICE = 7.00;
+    const JOKER_ADDON_PRICE = 9.00;
 
     /**
      * Resolve the authoritative unit price for a single cart line.

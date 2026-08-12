@@ -47,7 +47,7 @@ This is a Laravel-based API for creating and customizing avatars. Users can regi
     ```
 
 ## API Endpoints
-
+//
 ### Authentication
 
 *   `POST /api/register`: Register a new user.

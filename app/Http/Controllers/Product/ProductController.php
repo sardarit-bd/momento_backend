@@ -29,9 +29,7 @@ class ProductController extends Controller
         'trading_fronts', 'trading_backs',
     ];
 
-    /**
-     * Display a listing of products with pagination.
-     */
+ 
     public function index(Request $request): JsonResponse
     {
         try {

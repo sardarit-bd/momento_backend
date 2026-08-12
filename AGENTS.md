@@ -23,19 +23,19 @@ UI blade views are used for the product, `routes/web.php` is the Laravel default
 
 ## Tech stack (quick reference)
 
-| Concern            | Choice                                                        |
-|--------------------|---------------------------------------------------------------|
-| Framework          | Laravel 12, PHP `^8.2` (deploys on PHP 8.3)                   |
-| Auth               | `tymon/jwt-auth` `^2.2` (`auth:api` guard), Sanctum installed |
-| Database           | MySQL (migrations are framework default + custom)             |
-| Payments           | Stripe (`stripe/stripe-php` `^19`) + webhooks                 |
-| 3rd-party API      | TheGameCrafter (`TGC_BASE_URL=https://www.thegamecrafter.com/api`) |
-| Queue / cache      | DB-driven (`QUEUE_CONNECTION=database`, `CACHE_STORE=database`) |
-| Tests              | Pest 3 (`pestphp/pest`), in-memory SQLite                     |
-| Code style         | `laravel/pint` (run `./vendor/bin/pint`)                      |
-| Build / assets     | Vite 7 + Tailwind 4 (frontend assets only)                    |
-| Deploy             | `deploy.sh` (manual) + GitHub Actions `deploy.yml` on `main`  |
-| Secrets            | DB-backed `SecretKey` model via `App\Services\SecretManager`  |
+| Concern        | Choice                                                             |
+| -------------- | ------------------------------------------------------------------ |
+| Framework      | Laravel 12, PHP `^8.2` (deploys on PHP 8.3)                        |
+| Auth           | `tymon/jwt-auth` `^2.2` (`auth:api` guard), Sanctum installed      |
+| Database       | MySQL (migrations are framework default + custom)                  |
+| Payments       | Stripe (`stripe/stripe-php` `^19`) + webhooks                      |
+| 3rd-party API  | TheGameCrafter (`TGC_BASE_URL=https://www.thegamecrafter.com/api`) |
+| Queue / cache  | DB-driven (`QUEUE_CONNECTION=database`, `CACHE_STORE=database`)    |
+| Tests          | Pest 3 (`pestphp/pest`), in-memory SQLite                          |
+| Code style     | `laravel/pint` (run `./vendor/bin/pint`)                           |
+| Build / assets | Vite 7 + Tailwind 4 (frontend assets only)                         |
+| Deploy         | `deploy.sh` (manual) + GitHub Actions `deploy.yml` on `main`       |
+| Secrets        | DB-backed `SecretKey` model via `App\Services\SecretManager`       |
 
 ## Repository layout (mental map)
 
@@ -68,7 +68,7 @@ deploy.sh                # Manual tar+scp+ssh deploy to VPS
   and the DTOs — never call TGC HTTP endpoints from controllers directly. See
   `context/tgc-integration.md`.
 - Pricing is the single source of truth in `App\Services\CartPriceResolver`
-  (`TAX_RATE=0.08`, joker add-on `$7`). Never compute cart totals inline. See
+  (`TAX_RATE=0.08`, joker add-on `$9`). Never compute cart totals inline. See
   `context/payments-orders.md`.
 - API responses follow a `{success, status, message, data}` envelope (see
   `AuthController`). Keep that shape consistent.

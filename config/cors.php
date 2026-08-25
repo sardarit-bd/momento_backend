@@ -14,5 +14,5 @@ return [
     'allowed_headers' => ['*'],
     'exposed_headers' => [],
     'max_age' => 0,
-    'supports_credentials' => true, // Set to true if sending cookies/auth headers
+    'supports_credentials' => true, 
 ];

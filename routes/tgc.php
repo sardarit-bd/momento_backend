@@ -24,20 +24,14 @@ Route::middleware('auth:api')->prefix('tgc')->group(function (): void {
     Route::put('/cards/{cardId}/proof', [CardController::class, 'proof']);
     Route::post('/carts', [CartController::class, 'store']);
     Route::post('/carts/{cartId}/items', [CartController::class, 'addItem']);
-
     Route::get('/carts/{cartId}', fn (string $cartId) => app(TGCService::class)->getCart($cartId));
-
     Route::get('/carts/{cartId}/items', [CartController::class, 'items']);
-
     Route::post('/addresses', [AddressController::class, 'store']);
     Route::put('/carts/{cartId}', [CartController::class, 'update']);
-
     Route::post('/publish', [DeckPublishController::class, 'publish'])->name('tgc.publish');
     Route::get('/publish/{jobId}/status', [DeckPublishController::class, 'status'])->name('tgc.publish.status');
-
     Route::get('/receipts/{receiptId}', [ReceiptController::class, 'show']);
     Route::get('/addresses/{addressId}', [AddressController::class, 'show']);
-
     Route::get('/status/queue', [StatusController::class, 'queue']);
     Route::get('/carts/{cartId}/estimate', [StatusController::class, 'cartEstimate']);
 });

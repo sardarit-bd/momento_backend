@@ -21,117 +21,68 @@ use App\Http\Controllers\SubscriberController;
 use App\Http\Controllers\TGC\TGCWebhookController;
 use Illuminate\Support\Facades\Route;
 
-// Public routes
+
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 Route::post('forgotpass', [OtpController::class, 'otpSender']);
 Route::post('verify', [OtpController::class, 'verifyOtp']);
 Route::post('resetpass', [OtpController::class, 'resetPassword']);
 
-// Protected routes
 Route::middleware(['auth:api', 'token.revoked'])->group(function () {
     Route::get('auth/me', [AuthController::class, 'me']);
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::post('auth/refresh', [AuthController::class, 'refresh']);
-
-    // Profile — moved inside the authenticated group. These were previously
-    // registered as fully public routes (no auth:api at all), meaning anyone
-    // who knew/guessed a user ID could view or edit that user's profile
-    // without logging in. This also explains why "Profile" kept working
-    // client-side even after a token was revoked via role change — the
-    // endpoint never checked the token in the first place.
     Route::get('profile/{id}', [ProfileController::class, 'profile']);
     Route::put('profile/{id}', [ProfileController::class, 'update']);
-
-    // ======================================================================
-    // ============================Admin can handle==========================
-    // ======================================================================
     Route::middleware(['auth:api', 'roles:Admin'])->group(function () {
         Route::apiResource('categories', CategoryController::class);
         Route::apiResource('products', ProductController::class);
         Route::post('cardproduct', [ProductController::class, 'cardproduct']);
         Route::get('cardproduct/{slug}', [ProductController::class, 'showCardProduct']);
-
         Route::post('updateproduct', [ProductController::class, 'updateProductStatus']);
-
         Route::resource('orders', AdminOrderController::class)
             ->only(['index', 'show', 'update']);
         Route::get('/orders/{order}/cancel', [AdminOrderController::class, 'orderCancel']);
-
-        // Admin update delivery status
         Route::post('/orderupdate/{id}', [AdminOrderController::class, 'updateStatus']);
-
-        // Payment status update
         Route::get('/orders/{order}/payments', [AdminOrderPaymentController::class, 'payments']);
         Route::put('/payment/{orderHasPaid}/status', [AdminOrderPaymentController::class, 'updateStatus']);
-
-        // Secret Key Management
         Route::get('/secrets', [SecretKeyController::class, 'index'])
             ->name('secrets.index');
-
         Route::get('/secrets/{secret}', [SecretKeyController::class, 'show'])
             ->name('secrets.show');
-
         Route::post('/secrets', [SecretKeyController::class, 'store'])
             ->name('secrets.store');
-
         Route::put('/secrets/{secret}', [SecretKeyController::class, 'update'])
             ->name('secrets.update');
-
         Route::delete('/secrets/{secret}', [SecretKeyController::class, 'destroy'])
             ->name('secrets.destroy');
-
         Route::post('/secrets/{secret}/restore', [SecretKeyController::class, 'restore'])
             ->name('secrets.restore');
-
-        // User Role Management
         Route::get('users', [UserController::class, 'index']);
         Route::put('users/{user}/role', [UserController::class, 'updateRole']);
 
     });
 
     Route::get('subscribers', [SubscriberController::class, 'index']);
-
-    // ======================================================================
-    // ============================Customer can handle=======================
-    // ======================================================================
-
     Route::apiResource('preorders', PreOrderController::class);
     Route::apiResource('customer-orders', OrderController::class);
     Route::get('/myorders/{id}', [OrderController::class, 'myorders']);
-
-    // ======================================================================
-    // =========================Contact us===================================
-    // ======================================================================
-
     Route::get('contacts', [ContactController::class, 'index']);
     Route::delete('contacts/{id}', [ContactController::class, 'destroy']);
 
 });
 
-// =============================================================
-// ====================public routes============================
-// =============================================================
+
 
 Route::post('contact', [ContactController::class, 'store']);
 Route::get('shop', [ProductController::class, 'index']);
 Route::get('shop/{slug}', [ProductController::class, 'show']);
 Route::apiResource('payments', PaymentController::class);
-
 Route::post('subscribers', [SubscriberController::class, 'store']);
-
 Route::get('/trading-card/packages', [TradingCardPackageController::class, 'index']);
 Route::post('/cart/price', [CartPricingController::class, 'calculate']);
-
-// =============================================================
-// ====================Stripe Payment===========================
-// =============================================================
 Route::post('/checkout', [StripeController::class, 'createCheckoutSession']);
-
-// Stripe Webhook
 Route::post('/webhook/stripe', [WebhookController::class, 'handle']);
-
-// Order details and retry payment
 Route::middleware('auth:api')->group(function () {
     Route::get('/order/{id}', [OrderController::class, 'show']);
     Route::post('/order/{order}/retry', [OrderController::class, 'retryPayment']);

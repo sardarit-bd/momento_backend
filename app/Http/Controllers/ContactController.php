@@ -55,10 +55,10 @@ class ContactController extends Controller
         $subject = $validated['inquiryType'] ?? $validated['sub'] ?? 'New inquiry';
         $body = $validated['message'] ?? $validated['mes'] ?? '';
 
-        if ($contact) {
-            Mail::to('contact@momentocardgames.com')
-                ->send(new contactMail($validated['name'], $validated['email'], $subject, $body));
-        }
+        // if ($contact) { 
+        //     Mail::to('contact@momentocardgames.com')
+        //         ->send(new contactMail($validated['name'], $validated['email'], $subject, $body));
+        // }
 
         return response()->json([
             'success' => true,

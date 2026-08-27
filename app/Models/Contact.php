@@ -13,5 +13,11 @@ class Contact extends Model
         'email',
         'sub',
         'mes',
+        'inquiry_type',
+        'category',
+        'company',
+        'event_date',
+        'quantity',
+        'message',
     ];
 }

@@ -3,13 +3,14 @@
 return [
     'paths' => ['api/*', 'sanctum/csrf-cookie'],
     'allowed_methods' => ['*'],
-    'allowed_origins' => [
-        'http://localhost:3000',
-        'http://192.168.25.165:3000',
-        'https://momentocardgames.com',
-        'http://momentocardgames.com',
-        'https://backend.momentocardgames.com',
-    ],
+'allowed_origins' => [
+    'http://localhost:3000',
+    'http://192.168.25.165:3000',
+    'https://momentocardgames.com',
+    'https://www.momentocardgames.com',
+    'http://momentocardgames.com',
+    'https://backend.momentocardgames.com',
+],
     'allowed_origins_patterns' => [],
     'allowed_headers' => ['*'],
     'exposed_headers' => [],
